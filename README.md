@@ -63,8 +63,8 @@ Official plugins available for Agent Manager:
 
 | Plugin | Description | Install |
 |--------|-------------|---------|
-| **[am-agent-claude](https://github.com/john-westcott-iv/am-agent-claude)** | Claude/Cursor AI agent integration | `pip install -e am_agent_claude/` |
-| **[am-merger-smart-markdown](https://github.com/john-westcott-iv/am_merger_smart_markdown)** | Section-aware Markdown merging | `pip install -e am_merger_smart_markdown/` |
+| **[am-agent-claude](https://github.com/john-westcott-iv/am-agent-claude)** | Claude/Cursor AI agent integration | `pip install git+https://github.com/john-westcott-iv/am-agent-claude.git` |
+| **[am-merger-smart-markdown](https://github.com/john-westcott-iv/am_merger_smart_markdown)** | Section-aware Markdown merging | `pip install git+https://github.com/john-westcott-iv/am_merger_smart_markdown.git` |
 
 ---
 
