@@ -3,18 +3,21 @@
 import sys
 
 from agent_manager.output import MessageType, VerbosityLevel, message
-from agent_manager.utils import discover_external_plugins, load_plugin_class
+from agent_manager.utils import discover_external_plugins, filter_disabled_plugins, load_plugin_class
 
 
 # Package prefix for agent plugins
 AGENT_PLUGIN_PREFIX = "am_agent_"
 
 
-def discover_agent_plugins() -> dict[str, dict]:
+def discover_agent_plugins(include_disabled: bool = False) -> dict[str, dict]:
     """Discover all available agent plugins.
 
     Agent plugins are discovered by searching for installed packages
     that start with 'am_agent_' prefix.
+
+    Args:
+        include_disabled: If True, include disabled agent plugins
 
     Returns:
         Dictionary mapping agent names to plugin info:
@@ -25,10 +28,16 @@ def discover_agent_plugins() -> dict[str, dict]:
             }
         }
     """
-    return discover_external_plugins(
+    plugins = discover_external_plugins(
         plugin_type="agent",
         package_prefix=AGENT_PLUGIN_PREFIX,
     )
+
+    # Filter out disabled plugins unless requested
+    if not include_disabled:
+        plugins = filter_disabled_plugins(plugins, "agents")
+
+    return plugins
 
 
 def get_agent_names() -> list[str]:

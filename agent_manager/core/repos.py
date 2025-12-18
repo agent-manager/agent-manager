@@ -7,13 +7,17 @@ import sys
 from pathlib import Path
 
 from agent_manager.output import MessageType, VerbosityLevel, message
+from agent_manager.utils import get_disabled_plugins
 
 
-def discover_repo_types():
+def discover_repo_types(include_disabled: bool = False):
     """Dynamically discover all repository type classes.
 
     Scans the plugins.repos package for all classes that inherit from AbstractRepo
     (excluding AbstractRepo itself).
+
+    Args:
+        include_disabled: If True, include disabled repo type plugins
 
     Returns:
         List of repository class types
@@ -21,6 +25,9 @@ def discover_repo_types():
     from agent_manager.plugins.repos import AbstractRepo
 
     repo_types = []
+
+    # Get disabled repos if filtering
+    disabled_repos = get_disabled_plugins().get("repos", []) if not include_disabled else []
 
     # Get the repos package path
     import agent_manager.plugins.repos as repos_package
@@ -44,6 +51,10 @@ def discover_repo_types():
                 # Check if it's a subclass of AbstractRepo
                 # (but not AbstractRepo itself)
                 if issubclass(obj, AbstractRepo) and obj is not AbstractRepo and obj.__module__ == module.__name__:
+                    # Check if this repo type is disabled
+                    if hasattr(obj, "REPO_TYPE") and obj.REPO_TYPE in disabled_repos:
+                        message(f"Skipping disabled repo type: {obj.REPO_TYPE}", MessageType.DEBUG, VerbosityLevel.DEBUG)
+                        continue
                     repo_types.append(obj)
 
         except ImportError:

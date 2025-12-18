@@ -6,6 +6,7 @@ import sys
 from agent_manager.output import MessageType, VerbosityLevel, message
 from agent_manager.config import Config
 from agent_manager.core import MergerRegistry
+from agent_manager.utils import get_disabled_plugins, set_plugin_enabled
 
 
 class MergerCommands:
@@ -41,6 +42,14 @@ class MergerCommands:
         configure_parser = mergers_subparsers.add_parser("configure", help="Interactively configure merger preferences")
         configure_parser.add_argument("--merger", help="Configure only a specific merger (e.g., JsonMerger)")
 
+        # mergers enable
+        enable_parser = mergers_subparsers.add_parser("enable", help="Enable a merger plugin")
+        enable_parser.add_argument("name", help="Merger name (e.g., smart_markdown)")
+
+        # mergers disable
+        disable_parser = mergers_subparsers.add_parser("disable", help="Disable a merger plugin")
+        disable_parser.add_argument("name", help="Merger name (e.g., smart_markdown)")
+
     def process_cli_command(self, args: argparse.Namespace, config: Config) -> None:
         """Process merger-related CLI commands.
 
@@ -50,7 +59,7 @@ class MergerCommands:
         """
         if not hasattr(args, "mergers_command") or args.mergers_command is None:
             message("No mergers subcommand specified", MessageType.ERROR, VerbosityLevel.ALWAYS)
-            message("Available commands: list, show, configure", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("Available commands: list, show, configure, enable, disable", MessageType.NORMAL, VerbosityLevel.ALWAYS)
             sys.exit(1)
 
         if args.mergers_command == "list":
@@ -59,12 +68,19 @@ class MergerCommands:
             self.show_merger(args.merger)
         elif args.mergers_command == "configure":
             self.configure_mergers(config, args.merger)
+        elif args.mergers_command == "enable":
+            self.enable_merger(args.name)
+        elif args.mergers_command == "disable":
+            self.disable_merger(args.name)
 
     def list_mergers(self) -> None:
         """List all registered and available mergers."""
         from agent_manager.core.mergers import discover_merger_classes
 
         message("\n=== Registered Mergers ===\n", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+
+        # Get disabled mergers
+        disabled = get_disabled_plugins().get("mergers", [])
 
         registered = self.merger_registry.list_registered_mergers()
 
@@ -104,6 +120,33 @@ class MergerCommands:
                 ext_str = f" (handles: {', '.join(extensions)})" if extensions else ""
                 message(f"  {merger_class.__name__}{ext_str}", MessageType.NORMAL, VerbosityLevel.ALWAYS)
             message("", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+
+        # Show disabled plugins
+        if disabled:
+            message("Disabled mergers:", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            for name in disabled:
+                message(f"  {name} (disabled)", MessageType.WARNING, VerbosityLevel.ALWAYS)
+            message("", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("Use 'agent-manager mergers enable <name>' to re-enable", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+
+    def enable_merger(self, name: str) -> None:
+        """Enable a merger plugin.
+
+        Args:
+            name: Name of the merger to enable
+        """
+        if not set_plugin_enabled("mergers", name, enabled=True):
+            sys.exit(1)
+
+    def disable_merger(self, name: str) -> None:
+        """Disable a merger plugin.
+
+        Args:
+            name: Name of the merger to disable
+        """
+        if not set_plugin_enabled("mergers", name, enabled=False):
+            sys.exit(1)
 
     def show_merger(self, merger_name: str) -> None:
         """Show preferences for a specific merger.

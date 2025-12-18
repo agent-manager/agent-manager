@@ -6,15 +6,18 @@ import pkgutil
 from pathlib import Path
 
 from agent_manager.output import MessageType, VerbosityLevel, message
-from agent_manager.utils import discover_external_plugins
+from agent_manager.utils import discover_external_plugins, filter_disabled_plugins
 
 
-def discover_merger_classes():
+def discover_merger_classes(include_disabled: bool = False):
     """Dynamically discover all merger classes.
 
     Discovers mergers from two sources:
     1. Built-in: Scans the plugins.mergers package for AbstractMerger subclasses
     2. External: Discovers plugins via entry points under 'agent_manager.mergers'
+
+    Args:
+        include_disabled: If True, include disabled merger plugins
 
     Returns:
         List of merger classes
@@ -32,6 +35,10 @@ def discover_merger_classes():
         entry_point_group="agent_manager.mergers",
         base_class=AbstractMerger,
     )
+
+    # Filter out disabled plugins unless requested
+    if not include_disabled:
+        external_plugins = filter_disabled_plugins(external_plugins, "mergers")
 
     for plugin_info in external_plugins.values():
         if "class" in plugin_info:

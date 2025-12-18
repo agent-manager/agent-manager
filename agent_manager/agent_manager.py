@@ -53,6 +53,11 @@ def main() -> None:
         AgentCommands.process_agents_command(args)
         return
 
+    # Handle repos subcommands
+    if args.command == "repos":
+        RepoCommands.process_repos_command(args)
+        return
+
     # Handle config subcommands
     if args.command == "config":
         ConfigCommands.process_cli_command(args, config)

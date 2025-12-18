@@ -1,10 +1,19 @@
 """Tests for utils/discovery.py - Generic plugin discovery utilities."""
 
+import tempfile
+from pathlib import Path
 from unittest.mock import Mock, patch
+
+import pytest
+import yaml
 
 from agent_manager.utils.discovery import (
     discover_external_plugins,
+    filter_disabled_plugins,
+    get_disabled_plugins,
+    is_plugin_disabled,
     load_plugin_class,
+    set_plugin_enabled,
     _discover_by_package_prefix,
     _discover_by_entry_points,
 )
@@ -230,6 +239,175 @@ class TestLoadPluginClass:
             load_plugin_class(plugin_info, "Agent")
 
 
-# Import pytest for the raises check
-import pytest
+class TestGetDisabledPlugins:
+    """Test cases for get_disabled_plugins function."""
+
+    def test_returns_empty_when_no_config(self):
+        """Test returns empty lists when config doesn't exist."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = Path(tmpdir) / "config.yaml"
+            result = get_disabled_plugins(config_file)
+
+            assert result == {"mergers": [], "agents": [], "repos": []}
+
+    def test_returns_disabled_from_config(self):
+        """Test returns disabled plugins from config."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = Path(tmpdir) / "config.yaml"
+            config = {
+                "hierarchy": [],
+                "plugins": {
+                    "disabled": {
+                        "mergers": ["smart_markdown"],
+                        "agents": ["claude"],
+                    }
+                }
+            }
+            with open(config_file, "w") as f:
+                yaml.dump(config, f)
+
+            result = get_disabled_plugins(config_file)
+
+            assert result["mergers"] == ["smart_markdown"]
+            assert result["agents"] == ["claude"]
+            assert result["repos"] == []
+
+    def test_handles_partial_config(self):
+        """Test handles config with partial disabled section."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = Path(tmpdir) / "config.yaml"
+            config = {"hierarchy": [], "plugins": {"disabled": {"mergers": ["test"]}}}
+            with open(config_file, "w") as f:
+                yaml.dump(config, f)
+
+            result = get_disabled_plugins(config_file)
+
+            assert result["mergers"] == ["test"]
+            assert result["agents"] == []
+            assert result["repos"] == []
+
+
+class TestIsPluginDisabled:
+    """Test cases for is_plugin_disabled function."""
+
+    def test_returns_true_for_disabled(self):
+        """Test returns True for disabled plugin."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = Path(tmpdir) / "config.yaml"
+            config = {"plugins": {"disabled": {"mergers": ["smart_markdown"]}}}
+            with open(config_file, "w") as f:
+                yaml.dump(config, f)
+
+            result = is_plugin_disabled("mergers", "smart_markdown", config_file)
+
+            assert result is True
+
+    def test_returns_false_for_enabled(self):
+        """Test returns False for enabled plugin."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = Path(tmpdir) / "config.yaml"
+            config = {"plugins": {"disabled": {"mergers": ["other"]}}}
+            with open(config_file, "w") as f:
+                yaml.dump(config, f)
+
+            result = is_plugin_disabled("mergers", "smart_markdown", config_file)
+
+            assert result is False
+
+
+class TestSetPluginEnabled:
+    """Test cases for set_plugin_enabled function."""
+
+    def test_disables_plugin(self):
+        """Test disabling a plugin."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = Path(tmpdir) / "config.yaml"
+            config = {"hierarchy": []}
+            with open(config_file, "w") as f:
+                yaml.dump(config, f)
+
+            with patch("agent_manager.utils.discovery.message"):
+                result = set_plugin_enabled("mergers", "smart_markdown", False, config_file)
+
+            assert result is True
+
+            with open(config_file) as f:
+                updated_config = yaml.safe_load(f)
+
+            assert "smart_markdown" in updated_config["plugins"]["disabled"]["mergers"]
+
+    def test_enables_plugin(self):
+        """Test enabling a disabled plugin."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = Path(tmpdir) / "config.yaml"
+            config = {"hierarchy": [], "plugins": {"disabled": {"mergers": ["smart_markdown"]}}}
+            with open(config_file, "w") as f:
+                yaml.dump(config, f)
+
+            with patch("agent_manager.utils.discovery.message"):
+                result = set_plugin_enabled("mergers", "smart_markdown", True, config_file)
+
+            assert result is True
+
+            with open(config_file) as f:
+                updated_config = yaml.safe_load(f)
+
+            # Should not have plugins section anymore since it's empty
+            assert "plugins" not in updated_config or "disabled" not in updated_config.get("plugins", {})
+
+    def test_cleans_up_empty_sections(self):
+        """Test that empty sections are cleaned up."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = Path(tmpdir) / "config.yaml"
+            config = {"hierarchy": [], "plugins": {"disabled": {"mergers": ["only_one"]}}}
+            with open(config_file, "w") as f:
+                yaml.dump(config, f)
+
+            with patch("agent_manager.utils.discovery.message"):
+                set_plugin_enabled("mergers", "only_one", True, config_file)
+
+            with open(config_file) as f:
+                updated_config = yaml.safe_load(f)
+
+            # Plugins section should be removed entirely
+            assert "plugins" not in updated_config
+
+
+class TestFilterDisabledPlugins:
+    """Test cases for filter_disabled_plugins function."""
+
+    def test_filters_disabled_plugins(self):
+        """Test that disabled plugins are filtered out."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = Path(tmpdir) / "config.yaml"
+            config = {"plugins": {"disabled": {"mergers": ["disabled_one"]}}}
+            with open(config_file, "w") as f:
+                yaml.dump(config, f)
+
+            plugins = {
+                "enabled_one": {"package": "test1"},
+                "disabled_one": {"package": "test2"},
+                "enabled_two": {"package": "test3"},
+            }
+
+            with patch("agent_manager.utils.discovery.message"):
+                result = filter_disabled_plugins(plugins, "mergers", config_file)
+
+            assert "enabled_one" in result
+            assert "enabled_two" in result
+            assert "disabled_one" not in result
+
+    def test_returns_all_when_none_disabled(self):
+        """Test returns all plugins when none are disabled."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = Path(tmpdir) / "config.yaml"
+            config = {"hierarchy": []}
+            with open(config_file, "w") as f:
+                yaml.dump(config, f)
+
+            plugins = {"one": {"package": "test1"}, "two": {"package": "test2"}}
+
+            result = filter_disabled_plugins(plugins, "mergers", config_file)
+
+            assert len(result) == 2
 

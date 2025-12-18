@@ -2,8 +2,175 @@
 
 import importlib
 import importlib.metadata
+from pathlib import Path
+from typing import Any
+
+import yaml
 
 from agent_manager.output import MessageType, VerbosityLevel, message
+
+
+# =============================================================================
+# Plugin Enable/Disable Utilities
+# =============================================================================
+
+
+def get_disabled_plugins(config_file: Path | None = None) -> dict[str, list[str]]:
+    """Get the list of disabled plugins from config.
+
+    Args:
+        config_file: Path to config file. Defaults to ~/.agent-manager/config.yaml
+
+    Returns:
+        Dictionary mapping plugin types to lists of disabled plugin names:
+        {
+            "mergers": ["smart_markdown"],
+            "agents": ["claude"],
+            "repos": []
+        }
+    """
+    if config_file is None:
+        config_file = Path.home() / ".agent-manager" / "config.yaml"
+
+    result = {"mergers": [], "agents": [], "repos": []}
+
+    if not config_file.exists():
+        return result
+
+    try:
+        with open(config_file) as f:
+            config = yaml.safe_load(f) or {}
+
+        plugins_config = config.get("plugins", {})
+        disabled = plugins_config.get("disabled", {})
+
+        for plugin_type in result:
+            result[plugin_type] = disabled.get(plugin_type, [])
+
+    except Exception as e:
+        message(f"Failed to read disabled plugins from config: {e}", MessageType.DEBUG, VerbosityLevel.DEBUG)
+
+    return result
+
+
+def is_plugin_disabled(plugin_type: str, plugin_name: str, config_file: Path | None = None) -> bool:
+    """Check if a plugin is disabled.
+
+    Args:
+        plugin_type: Type of plugin ("mergers", "agents", "repos")
+        plugin_name: Name of the plugin
+        config_file: Path to config file. Defaults to ~/.agent-manager/config.yaml
+
+    Returns:
+        True if the plugin is disabled, False otherwise
+    """
+    disabled = get_disabled_plugins(config_file)
+    return plugin_name in disabled.get(plugin_type, [])
+
+
+def set_plugin_enabled(
+    plugin_type: str,
+    plugin_name: str,
+    enabled: bool,
+    config_file: Path | None = None,
+) -> bool:
+    """Enable or disable a plugin in config.
+
+    Args:
+        plugin_type: Type of plugin ("mergers", "agents", "repos")
+        plugin_name: Name of the plugin
+        enabled: True to enable, False to disable
+        config_file: Path to config file. Defaults to ~/.agent-manager/config.yaml
+
+    Returns:
+        True if the operation succeeded, False otherwise
+    """
+    if config_file is None:
+        config_file = Path.home() / ".agent-manager" / "config.yaml"
+
+    try:
+        # Read existing config
+        if config_file.exists():
+            with open(config_file) as f:
+                config = yaml.safe_load(f) or {}
+        else:
+            config = {}
+
+        # Ensure plugins.disabled structure exists
+        if "plugins" not in config:
+            config["plugins"] = {}
+        if "disabled" not in config["plugins"]:
+            config["plugins"]["disabled"] = {}
+        if plugin_type not in config["plugins"]["disabled"]:
+            config["plugins"]["disabled"][plugin_type] = []
+
+        disabled_list = config["plugins"]["disabled"][plugin_type]
+
+        if enabled:
+            # Remove from disabled list
+            if plugin_name in disabled_list:
+                disabled_list.remove(plugin_name)
+                message(f"Enabled {plugin_type[:-1]} plugin: {plugin_name}", MessageType.SUCCESS, VerbosityLevel.ALWAYS)
+            else:
+                message(f"Plugin '{plugin_name}' is already enabled", MessageType.INFO, VerbosityLevel.ALWAYS)
+        else:
+            # Add to disabled list
+            if plugin_name not in disabled_list:
+                disabled_list.append(plugin_name)
+                message(f"Disabled {plugin_type[:-1]} plugin: {plugin_name}", MessageType.SUCCESS, VerbosityLevel.ALWAYS)
+            else:
+                message(f"Plugin '{plugin_name}' is already disabled", MessageType.INFO, VerbosityLevel.ALWAYS)
+
+        # Clean up empty lists
+        if not disabled_list:
+            del config["plugins"]["disabled"][plugin_type]
+        if not config["plugins"]["disabled"]:
+            del config["plugins"]["disabled"]
+        if not config["plugins"]:
+            del config["plugins"]
+
+        # Write back to config
+        with open(config_file, "w") as f:
+            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+        return True
+
+    except Exception as e:
+        message(f"Failed to update plugin state: {e}", MessageType.ERROR, VerbosityLevel.ALWAYS)
+        return False
+
+
+def filter_disabled_plugins(
+    plugins: dict[str, Any],
+    plugin_type: str,
+    config_file: Path | None = None,
+) -> dict[str, Any]:
+    """Filter out disabled plugins from a plugin dictionary.
+
+    Args:
+        plugins: Dictionary of discovered plugins
+        plugin_type: Type of plugin ("mergers", "agents", "repos")
+        config_file: Path to config file
+
+    Returns:
+        Filtered dictionary with disabled plugins removed
+    """
+    disabled = get_disabled_plugins(config_file)
+    disabled_names = disabled.get(plugin_type, [])
+
+    filtered = {}
+    for name, info in plugins.items():
+        if name in disabled_names:
+            message(f"Skipping disabled {plugin_type[:-1]}: {name}", MessageType.DEBUG, VerbosityLevel.DEBUG)
+        else:
+            filtered[name] = info
+
+    return filtered
+
+
+# =============================================================================
+# Plugin Discovery Utilities
+# =============================================================================
 
 
 def discover_external_plugins(
