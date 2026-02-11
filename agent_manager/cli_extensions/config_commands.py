@@ -77,7 +77,23 @@ class ConfigCommands:
             args: Parsed command-line arguments
             config: Config instance to operate on
         """
-        if args.config_command == "init":
+        if args.config_command is None:
+            # No subcommand provided, show available commands
+            message("Usage: agent-manager config <command>", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("Available commands:", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  init      Initialize or reinitialize configuration", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  show      Display current hierarchy", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  add       Add a new hierarchy level", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  remove    Remove a hierarchy level", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  update    Update an existing hierarchy level", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  move      Move a hierarchy level to a new position", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  validate  Validate all repository URLs", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  export    Export configuration to a file or stdout", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  import    Import configuration from a file", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  where     Show configuration file location", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            return
+        elif args.config_command == "init":
             config.initialize(skip_if_already_created=False)
         elif args.config_command == "show":
             resolve = getattr(args, "resolve_paths", False)
