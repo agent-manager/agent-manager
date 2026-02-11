@@ -232,6 +232,24 @@ class TestConfigCommandsProcessCliCommand:
             with pytest.raises(SystemExit):
                 ConfigCommands.process_cli_command(args, config)
 
+    def test_shows_help_when_no_subcommand(self):
+        """Test that no subcommand shows available commands instead of error."""
+        args = Mock()
+        args.config_command = None
+
+        config = Mock(spec=Config)
+        messages = []
+
+        def capture_message(msg, *args, **kwargs):
+            messages.append(msg)
+
+        with patch("agent_manager.cli_extensions.config_commands.message", side_effect=capture_message):
+            # Should return without error, not raise SystemExit
+            ConfigCommands.process_cli_command(args, config)
+
+        # Should have printed available subcommands
+        assert any("Available" in str(m) or "subcommand" in str(m).lower() for m in messages)
+
 
 class TestConfigCommandsDisplay:
     """Test cases for display method."""

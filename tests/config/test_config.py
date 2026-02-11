@@ -685,6 +685,77 @@ class TestConfigInitialize:
 
         assert config.config_file.exists()
 
+    def test_initialize_accepts_comma_separated_hierarchy(self, tmp_path):
+        """Test that initialize accepts comma-separated hierarchy levels."""
+        config_dir = tmp_path / "config"
+        config = Config(config_dir=config_dir)
+        config.ensure_directories()
+
+        with patch("agent_manager.config.config.message"):
+            # Use comma-separated format instead of Python list
+            with patch("builtins.input", side_effect=["org, team, personal", "url1", "url2", "url3"]):
+                with patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]):
+                    with patch("agent_manager.config.config.Config.validate_repo_url", return_value=True):
+                        config.initialize()
+
+        # Verify the hierarchy was parsed correctly
+        data = config.read()
+        assert len(data["hierarchy"]) == 3
+        assert data["hierarchy"][0]["name"] == "org"
+        assert data["hierarchy"][1]["name"] == "team"
+        assert data["hierarchy"][2]["name"] == "personal"
+
+    def test_initialize_strips_whitespace_from_hierarchy(self, tmp_path):
+        """Test that initialize strips whitespace from comma-separated levels."""
+        config_dir = tmp_path / "config"
+        config = Config(config_dir=config_dir)
+        config.ensure_directories()
+
+        with patch("agent_manager.config.config.message"):
+            # Extra whitespace around entries
+            with patch("builtins.input", side_effect=["  org  ,  team  ", "url1", "url2"]):
+                with patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]):
+                    with patch("agent_manager.config.config.Config.validate_repo_url", return_value=True):
+                        config.initialize()
+
+        data = config.read()
+        assert data["hierarchy"][0]["name"] == "org"
+        assert data["hierarchy"][1]["name"] == "team"
+
+    def test_initialize_accepts_python_list_syntax(self, tmp_path):
+        """Test that initialize still accepts Python list syntax for backward compatibility."""
+        config_dir = tmp_path / "config"
+        config = Config(config_dir=config_dir)
+        config.ensure_directories()
+
+        with patch("agent_manager.config.config.message"):
+            with patch("builtins.input", side_effect=['["org", "team"]', "url1", "url2"]):
+                with patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]):
+                    with patch("agent_manager.config.config.Config.validate_repo_url", return_value=True):
+                        config.initialize()
+
+        data = config.read()
+        assert len(data["hierarchy"]) == 2
+        assert data["hierarchy"][0]["name"] == "org"
+        assert data["hierarchy"][1]["name"] == "team"
+
+    def test_initialize_rejects_empty_hierarchy_entries(self, tmp_path):
+        """Test that initialize rejects empty hierarchy entries."""
+        config_dir = tmp_path / "config"
+        config = Config(config_dir=config_dir)
+        config.ensure_directories()
+
+        with patch("agent_manager.config.config.message"):
+            # Empty entry between commas, then valid input
+            with patch("builtins.input", side_effect=["org, , team", "org, team", "url1", "url2"]):
+                with patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]):
+                    with patch("agent_manager.config.config.Config.validate_repo_url", return_value=True):
+                        config.initialize()
+
+        # Should have retried and accepted the valid input
+        data = config.read()
+        assert len(data["hierarchy"]) == 2
+
 
 class TestConfigNormalizeUrl:
     """Test cases for normalize_url static method."""

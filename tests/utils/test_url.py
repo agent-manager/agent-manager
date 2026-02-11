@@ -30,13 +30,32 @@ class TestIsFileUrl:
         assert not is_file_url("git://github.com/user/repo.git")
         assert not is_file_url("ssh://git@github.com/user/repo.git")
 
-    def test_returns_false_for_plain_path(self):
-        """Test that plain filesystem paths are not file URLs."""
-        assert not is_file_url("/absolute/path")
+    def test_returns_true_for_plain_absolute_path(self):
+        """Test that plain absolute paths are detected as file URLs."""
+        assert is_file_url("/absolute/path")
+        assert is_file_url("/home/user/config")
+        assert is_file_url("/")
+
+    def test_returns_true_for_home_directory_path(self):
+        """Test that home directory paths are detected as file URLs."""
+        assert is_file_url("~/Documents")
+        assert is_file_url("~/.config/app")
+        assert is_file_url("~")
+
+    def test_returns_true_for_relative_paths(self):
+        """Test that relative paths with ./ or ../ are detected as file URLs."""
+        assert is_file_url("./relative/path")
+        assert is_file_url("../parent/path")
+        assert is_file_url(".")
+        assert is_file_url("..")
+        assert is_file_url("./")
+        assert is_file_url("../")
+
+    def test_returns_false_for_bare_relative_path(self):
+        """Test that bare relative paths (no ./ prefix) are NOT file URLs."""
+        # These could be ambiguous with other URL schemes
         assert not is_file_url("relative/path")
-        assert not is_file_url("~/home/path")
-        assert not is_file_url(".")
-        assert not is_file_url("..")
+        assert not is_file_url("subdir/file.txt")
 
     def test_returns_false_for_empty_string(self):
         """Test that empty string is not a file URL."""
@@ -235,23 +254,30 @@ class TestUrlUtilsIntegration:
 
     def test_handling_various_url_types(self):
         """Test handling different URL types appropriately."""
-        urls = [
+        # URLs that should be detected as file URLs
+        file_urls = [
             "file:///tmp/local",
-            "https://github.com/repo",
             "/absolute/path",
-            "~/relative/path",
+            "~/config/path",
+            "./relative/path",
+            "../parent/path",
+            ".",
         ]
 
-        for url in urls:
-            if is_file_url(url):
-                # Only resolve file URLs
-                result = resolve_file_path(url)
-                assert isinstance(result, Path)
-            else:
-                # For non-file URLs, resolve_file_path treats as plain path
-                if url.startswith(("http://", "https://", "git@")):
-                    # These would be treated as relative paths
-                    pass
+        for url in file_urls:
+            assert is_file_url(url), f"Expected {url} to be a file URL"
+            result = resolve_file_path(url)
+            assert isinstance(result, Path)
+
+        # URLs that should NOT be detected as file URLs
+        non_file_urls = [
+            "https://github.com/repo",
+            "git@github.com:user/repo.git",
+            "relative/path",  # No ./ prefix
+        ]
+
+        for url in non_file_urls:
+            assert not is_file_url(url), f"Expected {url} to NOT be a file URL"
 
     def test_round_trip_file_url_conversion(self):
         """Test converting to file URL and back."""

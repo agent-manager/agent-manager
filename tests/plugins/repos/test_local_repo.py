@@ -43,9 +43,18 @@ class TestLocalRepoCanHandleUrl:
         """Test that SSH URLs are not handled."""
         assert not LocalRepo.can_handle_url("ssh://git@github.com/user/repo")
 
-    def test_rejects_plain_paths(self):
-        """Test that plain paths without file:// are not handled."""
-        assert not LocalRepo.can_handle_url("/tmp/repo")
+    def test_accepts_plain_paths(self):
+        """Test that plain paths are now handled (auto-converted to file://)."""
+        assert LocalRepo.can_handle_url("/tmp/repo")
+        assert LocalRepo.can_handle_url("~/config")
+        assert LocalRepo.can_handle_url("./relative")
+        assert LocalRepo.can_handle_url("../parent")
+        assert LocalRepo.can_handle_url(".")
+
+    def test_rejects_bare_relative_paths(self):
+        """Test that bare relative paths (no ./) are still rejected."""
+        assert not LocalRepo.can_handle_url("relative/path")
+        assert not LocalRepo.can_handle_url("subdir")
 
 
 class TestLocalRepoValidateUrl:
