@@ -17,6 +17,18 @@ class ConcreteAgent(AbstractAgent):
     # Set the repo directory name explicitly so it doesn't change if agent_directory is overridden
     _repo_directory_name: str = ".testagent"
 
+    @property
+    def scopes(self) -> dict:
+        """Define test scopes."""
+        from agent_manager.plugins.agents import ScopeConfig
+
+        return {
+            "default": ScopeConfig(
+                directory=self.agent_directory,
+                description="Test scope",
+            ),
+        }
+
     def register_hooks(self) -> None:
         """Concrete implementation of register_hooks."""
         # For testing, register some sample hooks
@@ -101,8 +113,11 @@ class TestAbstractAgentExcludePatterns:
         """Test that exclude patterns combine base and additional."""
 
         class AgentWithExcludes(AbstractAgent):
-            def register_hooks(self):
-                pass
+            @property
+            def scopes(self):
+                from agent_manager.plugins.agents import ScopeConfig
+
+                return {"default": ScopeConfig(directory=Path.home() / ".test", description="Test")}
 
             def get_additional_excludes(self):
                 return ["custom.txt", "*.log"]
@@ -355,6 +370,12 @@ class TestAbstractAgentRunHook:
         """Test that _run_hook handles hook exceptions gracefully."""
 
         class FaultyAgent(AbstractAgent):
+            @property
+            def scopes(self):
+                from agent_manager.plugins.agents import ScopeConfig
+
+                return {"default": ScopeConfig(directory=Path.home() / ".test", description="Test")}
+
             def register_hooks(self):
                 self.pre_merge_hooks["*.txt"] = self._faulty_hook
 
@@ -607,10 +628,11 @@ class TestAbstractAgentAbstractMethods:
         with pytest.raises(TypeError):
             AbstractAgent()
 
-    def test_must_implement_register_hooks(self):
-        """Test that subclasses must implement register_hooks."""
+    def test_must_implement_scopes(self):
+        """Test that subclasses must implement scopes property."""
 
         class IncompleteAgent(AbstractAgent):
+            # Missing scopes property
             pass
 
         with pytest.raises(TypeError):

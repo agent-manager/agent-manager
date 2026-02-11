@@ -3,10 +3,24 @@
 import fnmatch
 from abc import ABC, abstractmethod
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from agent_manager.output import MessageType, VerbosityLevel, message
 from agent_manager.core import MergerRegistry
+
+
+@dataclass
+class ScopeConfig:
+    """Configuration for a single scope.
+
+    Attributes:
+        directory: The output directory for this scope
+        description: Human-readable description of the scope
+    """
+
+    directory: Path
+    description: str = ""
 
 
 class AbstractAgent(ABC):
@@ -14,6 +28,60 @@ class AbstractAgent(ABC):
 
     home_directory: Path = Path.home()
     agent_directory: Path = home_directory
+
+    @property
+    @abstractmethod
+    def scopes(self) -> dict:
+        """Define available scopes for this agent.
+
+        Must be implemented by subclasses. Returns a dictionary mapping
+        scope names to ScopeConfig objects.
+
+        Example:
+            @property
+            def scopes(self) -> dict[str, ScopeConfig]:
+                return {
+                    "default": ScopeConfig(directory=Path.home() / ".myagent", description="..."),
+                    "user": ScopeConfig(directory=Path.home() / ".myagent", description="..."),
+                }
+
+        Returns:
+            Dictionary mapping scope names to ScopeConfig objects
+        """
+        pass
+
+    # Default scope name
+    DEFAULT_SCOPE = "default"
+
+    def get_scope_names(self) -> list[str]:
+        """Get list of available scope names for this agent.
+
+        Returns:
+            Sorted list of scope names
+        """
+        return sorted(self.scopes.keys())
+
+    def get_scope_directory(self, scope: str | None = None) -> Path:
+        """Get the output directory for a specific scope.
+
+        Args:
+            scope: Scope name. If None, uses DEFAULT_SCOPE.
+
+        Returns:
+            Path to the scope's output directory
+
+        Raises:
+            ValueError: If the scope is not supported by this agent
+        """
+        if scope is None:
+            scope = self.DEFAULT_SCOPE
+
+        scopes = self.scopes
+        if scope not in scopes:
+            available = ", ".join(sorted(scopes.keys()))
+            raise ValueError(f"Unknown scope '{scope}'. Available scopes: {available}")
+
+        return scopes[scope].directory
 
     # Default files/directories to exclude when discovering configs
     BASE_EXCLUDE_PATTERNS = [
@@ -47,7 +115,8 @@ class AbstractAgent(ABC):
         self.merger_registry = MergerRegistry()
         self.register_default_mergers()
 
-        # Let agent plugins register custom hooks and mergers
+        # Register default hooks, then let agent plugins add custom ones
+        self._register_default_hooks()
         self.register_hooks()
 
     def register_default_mergers(self) -> None:
@@ -64,16 +133,139 @@ class AbstractAgent(ABC):
         self.merger_registry.extension_mergers = default_registry.extension_mergers.copy()
         self.merger_registry.default_merger = default_registry.default_merger
 
-    @abstractmethod
-    def register_hooks(self) -> None:
-        """Register file-specific hooks for pre/post merge processing.
+    def get_agent_name(self) -> str:
+        """Get the display name for this agent.
 
-        Override this method to register hooks for specific file patterns.
+        Used in metadata headers and logging. Override to customize.
+        Default returns the agent directory name without the leading dot.
+
+        Returns:
+            Agent display name (e.g., "claude", "cursor")
+        """
+        name = self.agent_directory.name
+        return name.lstrip(".")
+
+    def _register_default_hooks(self) -> None:
+        """Register default hooks common to all agents.
+
+        Sets up markdown cleaning and metadata header generation.
+        Called before register_hooks() so plugins can override if needed.
+        """
+        # Pre-merge: Clean up markdown files
+        self.pre_merge_hooks["*.md"] = self._clean_markdown
+
+        # Post-merge: Add metadata header to merged files
+        self.post_merge_hooks["*"] = self._add_metadata_header
+
+    def register_hooks(self) -> None:
+        """Register agent-specific hooks for pre/post merge processing.
+
+        Override this method to register additional hooks for specific file patterns.
+        Default hooks (markdown cleaning, metadata headers) are already registered.
+
         Example:
-            self.pre_merge_hooks[".cursorrules"] = self._validate_cursorrules
-            self.post_merge_hooks["*.json"] = self._format_json
+            def register_hooks(self) -> None:
+                self.pre_merge_hooks[".cursorrules"] = self._validate_cursorrules
+                self.post_merge_hooks["*.json"] = self._format_json
         """
         pass
+
+    def _clean_markdown(self, content: str, entry: dict, file_path: Path) -> str:
+        """Clean up markdown content before merging.
+
+        Strips trailing whitespace and ensures single newline at end.
+
+        Args:
+            content: File content
+            entry: Hierarchy entry
+            file_path: Path to source file
+
+        Returns:
+            Cleaned content
+        """
+        content = content.rstrip() + "\n"
+        message(f"    Cleaned markdown from {entry['name']}", MessageType.DEBUG, VerbosityLevel.DEBUG)
+        return content
+
+    def _add_metadata_header(self, content: str, file_name: str, sources: list[str]) -> str:
+        """Add metadata header to merged files with appropriate comment syntax.
+
+        Args:
+            content: Merged content
+            file_name: Output filename
+            sources: List of source hierarchy levels
+
+        Returns:
+            Content with metadata header
+        """
+        file_lower = file_name.lower()
+
+        # JSON doesn't support comments, skip header
+        if file_lower.endswith(".json"):
+            return content
+
+        # Determine comment style based on file extension
+        if file_lower.endswith((".yaml", ".yml", ".txt", ".py", ".sh", ".cursorrules", ".clinerules")):
+            comment_start = "# "
+            comment_end = ""
+        elif file_lower.endswith((".md", ".markdown", ".html", ".xml")):
+            comment_start = "<!-- "
+            comment_end = " -->"
+        else:
+            comment_start = "# "
+            comment_end = ""
+
+        # Build header with appropriate comment syntax
+        agent_name = self.get_agent_name()
+        header = f"{comment_start}Generated by agent-manager ({agent_name} agent){comment_end}\n"
+        header += f"{comment_start}File: {file_name}{comment_end}\n"
+        header += f"{comment_start}Sources: {' → '.join(sources)}{comment_end}\n"
+        header += (
+            f"{comment_start}Hierarchy: {sources[0]} (lowest) to {sources[-1]} (highest priority){comment_end}\n\n"
+        )
+
+        return header + content
+
+    def _initialize(self, scope: str | None = None) -> None:
+        """Initialize the agent's configuration directory.
+
+        Creates the output directory if it doesn't exist. Override this method
+        for agent-specific initialization (e.g., running SDK commands).
+
+        Args:
+            scope: Scope to initialize. If None, uses default scope.
+        """
+        output_dir = self.get_scope_directory(scope)
+
+        if output_dir.exists():
+            message(
+                f"{self.get_agent_name()} directory already exists: {output_dir}",
+                MessageType.DEBUG,
+                VerbosityLevel.DEBUG,
+            )
+            return
+
+        message(
+            f"Initializing {self.get_agent_name()} directory: {output_dir}",
+            MessageType.INFO,
+            VerbosityLevel.EXTRA_VERBOSE,
+        )
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+        message(f"✓ Created {output_dir}", MessageType.SUCCESS, VerbosityLevel.ALWAYS)
+
+    def update(self, config: dict, scope: str | None = None) -> None:
+        """Update agent configuration from hierarchical repositories.
+
+        Default implementation initializes the directory and merges configurations.
+        Override for agent-specific update behavior.
+
+        Args:
+            config: Configuration data with hierarchy and repo objects
+            scope: Configuration scope to use. If None, uses default scope.
+        """
+        self._initialize(scope)
+        self.merge_configurations(config, scope)
 
     def get_additional_excludes(self) -> list[str]:
         """Get agent-specific exclude patterns.
