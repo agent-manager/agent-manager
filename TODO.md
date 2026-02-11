@@ -46,6 +46,27 @@ Considerations:
 - How to handle dirty working directories?
 - Should we warn if local checkout is behind remote?
 
+## Git repo branch configuration
+Allow specifying which branch a git repo should sync from.
+
+Currently git repos clone and pull from the default branch. Add support for:
+- Config option to specify branch per hierarchy level: `branch: develop`
+- CLI flag to override: `agent-manager run --branch personal=feature-x`
+- Validation that the branch exists before syncing
+
+Example config:
+```yaml
+hierarchy:
+  - name: organization
+    url: https://github.com/org/config.git
+    repo_type: git
+    branch: main  # explicit branch
+  - name: personal
+    url: https://github.com/user/config.git
+    repo_type: git
+    branch: develop  # different branch
+```
+
 ## Handle Claude-generated files (skills, etc.)
 The `claude /init` command (via npx) creates default files like `skills/skills-creator.md`.
 How should agent-manager handle these?
