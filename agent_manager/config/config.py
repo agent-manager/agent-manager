@@ -379,22 +379,46 @@ class Config:
         # Prompt for hierarchy with retry loop
         hierarchy_list = None
         while hierarchy_list is None:
-            message("Please create your hierarchy as a Python list.", MessageType.NORMAL, VerbosityLevel.ALWAYS)
-            message("Order from LOWEST to HIGHEST priority", MessageType.NORMAL, VerbosityLevel.ALWAYS)
-            message("(first = base, last = overrides all):", MessageType.NORMAL, VerbosityLevel.ALWAYS)
-            example = '(e.g., ["organization", "team", "personal"]): '
-            hierarchy_input = input(example)
+            message("Enter your hierarchy levels, from LOWEST to HIGHEST priority.", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("(first = base, last = overrides all)", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            example = "(e.g., organization, team, personal): "
+            hierarchy_input = input(example).strip()
 
-            try:
-                hierarchy_list = ast.literal_eval(hierarchy_input)
-                if not isinstance(hierarchy_list, list):
-                    message(
-                        "Input must be a python list. Please try again.\n", MessageType.ERROR, VerbosityLevel.ALWAYS
-                    )
-                    hierarchy_list = None
-            except (ValueError, SyntaxError) as e:
-                message(f"Error parsing hierarchy: {e}", MessageType.ERROR, VerbosityLevel.ALWAYS)
+            if not hierarchy_input:
+                message("Hierarchy cannot be empty. Please try again.\n", MessageType.ERROR, VerbosityLevel.ALWAYS)
+                continue
+
+            # Try parsing as Python list first (for backward compatibility)
+            if hierarchy_input.startswith("["):
+                try:
+                    hierarchy_list = ast.literal_eval(hierarchy_input)
+                    if not isinstance(hierarchy_list, list):
+                        message("Invalid list format. Please try again.\n", MessageType.ERROR, VerbosityLevel.ALWAYS)
+                        hierarchy_list = None
+                        continue
+                except (ValueError, SyntaxError):
+                    message("Invalid list format. Please try again.\n", MessageType.ERROR, VerbosityLevel.ALWAYS)
+                    continue
+            else:
+                # Parse as comma-separated values
+                hierarchy_list = [level.strip() for level in hierarchy_input.split(",") if level.strip()]
+
+            # Validate we got at least one level
+            if not hierarchy_list:
+                message("Hierarchy must have at least one level. Please try again.\n", MessageType.ERROR, VerbosityLevel.ALWAYS)
+                hierarchy_list = None
+                continue
+
+            # Validate level names (no special characters that would cause issues)
+            invalid_names = [name for name in hierarchy_list if not name or "/" in name or "\\" in name]
+            if invalid_names:
+                message(
+                    f"Invalid level name(s): {invalid_names}. Names cannot be empty or contain slashes.",
+                    MessageType.ERROR,
+                    VerbosityLevel.ALWAYS,
+                )
                 message("Please try again.\n", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+                hierarchy_list = None
 
         # Prompt for repository URL for each hierarchy level
         hierarchy_config: list[HierarchyEntry] = []
