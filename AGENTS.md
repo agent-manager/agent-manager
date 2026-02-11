@@ -140,12 +140,36 @@ message("Loaded plugin: JsonMerger", MessageType.DEBUG, VerbosityLevel.DEBUG)
 - **Docstrings**: Google-style docstrings for all public methods
 - **Line Length**: 120 characters (ruff default)
 
-### Testing
+### Testing Requirements
+
+**MANDATORY**: Every code change MUST include corresponding test updates.
+
+#### Test Policy
+1. **New features**: Add tests covering the new functionality
+2. **Bug fixes**: Add a test that would have caught the bug
+3. **Refactors**: Update existing tests if behavior changes
+4. **No exceptions**: Even "trivial" changes need test verification
+
+#### Before Completing Any Code Change
+- [ ] Run affected tests to verify they pass
+- [ ] Add new tests for new functionality
+- [ ] Update existing tests if behavior changed
+- [ ] Run `pytest tests/ -v` to ensure no regressions
+
+#### Test Framework
 - **Framework**: pytest
 - **Location**: `tests/` directory mirrors `agent_manager/` structure
 - **Coverage**: 99% (547/553 tests passing)
 - **Run Tests**: `pytest tests/ -v`
 - **Fast Tests**: `pytest tests/ -q --tb=no`
+
+#### Test File Locations
+| Source File | Test File |
+|-------------|-----------|
+| `agent_manager/config/config.py` | `tests/config/test_config.py` |
+| `agent_manager/utils/url.py` | `tests/utils/test_url.py` |
+| `agent_manager/plugins/repos/local_repo.py` | `tests/plugins/repos/test_local_repo.py` |
+| `agent_manager/cli_extensions/config_commands.py` | `tests/cli_extensions/test_config_commands.py` |
 
 ### Plugin Development
 
