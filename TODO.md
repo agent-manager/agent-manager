@@ -87,6 +87,33 @@ Related questions:
 # Create process
 Create a background process that would somehow detect changes and auto-update repos for users.
 
+## Agent Plugin API Versioning
+
+Add version compatibility checking for agent plugins.
+
+Problem:
+- As AbstractAgent evolves (new methods, changed signatures, refactored helpers), third-party agent plugins may become incompatible
+- Users might have outdated agents that still "work" but miss new features or use deprecated patterns
+- Breaking changes could cause silent failures or unexpected behavior
+
+Proposed solution:
+1. **API version in AbstractAgent**: Define `AGENT_API_VERSION = "1.0"` in AbstractAgent
+2. **Declared compatibility in plugins**: Agents declare `supported_api_versions = ["1.0", "1.1"]`
+3. **Runtime warning**: On load, warn if agent's supported versions don't include current API version
+4. **Deprecation notices**: Mark deprecated methods/patterns and warn when agents use them
+
+Example warning:
+```
+Warning: Plugin 'cursor' (am_agent_cursor 0.0.1) was built for API v1.0 but current API is v2.0.
+Some features may not work correctly. Consider updating the plugin.
+```
+
+Related considerations:
+- Semantic versioning for API (major = breaking, minor = additive, patch = fixes)
+- Grace period for deprecated features before removal
+- Documentation of API changes in CHANGELOG
+- Test suite that plugins can run to verify compatibility
+
 # Alternative Markdown Merge Strategy
 Instead of just appending one after another can we merge sections based on heading in the markdown?
 i.e. if one file had the section: # Top Level > ## Indented One
