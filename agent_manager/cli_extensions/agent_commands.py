@@ -45,6 +45,12 @@ class AgentCommands:
             choices=["all"] + agent_plugin_names,
             help="Agent plugin to use (default: all agents)",
         )
+        run_parser.add_argument(
+            "--scope",
+            type=str,
+            default="default",
+            help="Configuration scope to use (default: 'default'). Available scopes depend on the agent.",
+        )
 
     @classmethod
     def process_agents_command(cls, args: argparse.Namespace) -> None:
@@ -137,5 +143,8 @@ class AgentCommands:
         # Determine which agents to run
         agents_to_run = [args.agent] if args.agent != "all" else ["all"]
 
+        # Get scope from args (defaults to "default")
+        scope = getattr(args, "scope", "default")
+
         # Use the core module to run agents
-        run_agents(agents_to_run, config_data)
+        run_agents(agents_to_run, config_data, scope=scope)

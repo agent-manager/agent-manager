@@ -278,21 +278,24 @@ class AbstractAgent(ABC):
         """
         return []
 
-    def get_repo_directory_name(self) -> str:
+    def get_repo_directory_name(self, scope: str | None = None) -> str:
         """Get the directory name to look for in repositories.
 
-        By default, uses the name of the agent_directory (e.g., ".claude" from ~/.claude).
+        By default, uses the name of the scope's directory (e.g., ".claude" from ~/.claude).
         If _repo_directory_name is set, uses that instead (useful for testing).
+
+        Args:
+            scope: Scope name. If None, uses DEFAULT_SCOPE.
 
         Returns:
             Directory name to search for in repositories
         """
-        repo_dir_name = getattr(self, '_repo_directory_name', None)
+        repo_dir_name = getattr(self, "_repo_directory_name", None)
         if repo_dir_name:
             return repo_dir_name
-        return self.agent_directory.name
+        return self.get_scope_directory(scope).name
 
-    def _discover_files(self, repo_path: Path) -> list[Path]:
+    def _discover_files(self, repo_path: Path, scope: str | None = None) -> list[Path]:
         """Discover configuration files in agent-specific directory within repository.
 
         Searches for files in <repo_path>/<agent_directory_name>/ recursively.
@@ -307,6 +310,7 @@ class AbstractAgent(ABC):
 
         Args:
             repo_path: Path to the repository
+            scope: Scope name for determining which directory to look in
 
         Returns:
             List of configuration file paths found in agent directory
@@ -314,7 +318,7 @@ class AbstractAgent(ABC):
         found_files = []
 
         # Get the agent directory name to look for in repos
-        agent_dir_name = self.get_repo_directory_name()
+        agent_dir_name = self.get_repo_directory_name(scope)
 
         # Look for agent-specific directory in the repo
         agent_repo_dir = repo_path / agent_dir_name
@@ -339,15 +343,37 @@ class AbstractAgent(ABC):
 
         return sorted(found_files)  # Sort for consistent ordering
 
-    def get_agent_directory(self) -> Path:
+    def get_agent_directory(self, scope: str | None = None) -> Path:
         """Get the agent's configuration directory.
 
-        Returns:
-            Path to the agent directory
-        """
-        return self.agent_directory
+        Args:
+            scope: Scope name. If None, uses DEFAULT_SCOPE.
 
-    def merge_configurations(self, config: dict) -> None:
+        Returns:
+            Path to the agent directory for the given scope
+        """
+        return self.get_scope_directory(scope)
+
+    def _should_include_entry_for_scope(self, entry: dict, scope: str) -> bool:
+        """Check if a hierarchy entry should be included for the given scope.
+
+        If the entry has a 'scopes' key, only include it if the scope is in that list.
+        If no 'scopes' key is present, include the entry for all scopes.
+
+        Args:
+            entry: Hierarchy entry from config
+            scope: Current scope being processed
+
+        Returns:
+            True if the entry should be included, False otherwise
+        """
+        entry_scopes = entry.get("scopes")
+        if entry_scopes is None:
+            # No scopes specified = applies to all scopes
+            return True
+        return scope in entry_scopes
+
+    def merge_configurations(self, config: dict, scope: str | None = None) -> None:
         """Merge configuration files from hierarchical repositories.
 
         Traverses the hierarchy (org -> team -> personal) and merges files
@@ -355,14 +381,34 @@ class AbstractAgent(ABC):
 
         Args:
             config: Configuration data with hierarchy and repo objects
+            scope: Scope to merge for. If None, uses DEFAULT_SCOPE.
         """
-        message("\n=== Merging Hierarchical Configurations ===\n", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+        if scope is None:
+            scope = self.DEFAULT_SCOPE
+
+        # Validate scope
+        output_dir = self.get_scope_directory(scope)
+        scope_config = self.scopes[scope]
+
+        message(f"\n=== Merging Configurations for scope '{scope}' ===", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+        message(f"Output directory: {output_dir}", MessageType.INFO, VerbosityLevel.VERBOSE)
+        if scope_config.description:
+            message(f"({scope_config.description})\n", MessageType.NORMAL, VerbosityLevel.VERBOSE)
 
         # Track merged files: filename -> (content, source_info_list)
         merged_files: dict[str, tuple[str, list[str]]] = {}
 
         # Process hierarchy from lowest to highest priority (org -> team -> personal)
         for entry in config["hierarchy"]:
+            # Check if this entry applies to the current scope
+            if not self._should_include_entry_for_scope(entry, scope):
+                message(
+                    f"Skipping '{entry['name']}' (not in scope '{scope}')",
+                    MessageType.DEBUG,
+                    VerbosityLevel.DEBUG,
+                )
+                continue
+
             name = entry["name"]
             repo = entry["repo"]
             repo_path = repo.get_path()
@@ -376,7 +422,7 @@ class AbstractAgent(ABC):
                 continue
 
             # Discover files in this repository
-            files = self._discover_files(repo_path)
+            files = self._discover_files(repo_path, scope)
 
             if not files:
                 message(f"  No configuration files found in '{name}'", MessageType.NORMAL, VerbosityLevel.ALWAYS)
@@ -387,7 +433,7 @@ class AbstractAgent(ABC):
             for file_path in files:
                 # Get relative path from agent directory in repo
                 # e.g., repo/.claude/agents/JIRA.md -> agents/JIRA.md
-                agent_repo_dir = repo_path / self.get_repo_directory_name()
+                agent_repo_dir = repo_path / self.get_repo_directory_name(scope)
                 try:
                     relative_path = file_path.relative_to(agent_repo_dir)
                     file_key = str(relative_path)  # Use relative path as key
@@ -427,14 +473,14 @@ class AbstractAgent(ABC):
 
         # Write merged files with POST-MERGE HOOKS
         if merged_files:
-            message(f"\nWriting {len(merged_files)} merged file(s)...", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message(f"\nWriting {len(merged_files)} merged file(s) to {output_dir}...", MessageType.NORMAL, VerbosityLevel.ALWAYS)
 
             for file_path_str, (content, sources) in merged_files.items():
                 # POST-MERGE HOOK: Allow plugin-specific postprocessing
                 content = self._run_hook(self.post_merge_hooks, file_path_str, content, None, None, sources)
 
                 # Preserve directory structure: use relative path as-is
-                output_path = self.agent_directory / file_path_str
+                output_path = output_dir / file_path_str
                 try:
                     # Ensure parent directories exist
                     output_path.parent.mkdir(parents=True, exist_ok=True)

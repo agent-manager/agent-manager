@@ -83,12 +83,13 @@ def load_agent(agent_name: str, plugins: dict[str, dict] | None = None):
         sys.exit(1)
 
 
-def run_agents(agent_names: list[str], config_data: dict) -> None:
+def run_agents(agent_names: list[str], config_data: dict, scope: str = "default") -> None:
     """Run one or more agents with the given configuration.
 
     Args:
         agent_names: List of agent names to run, or ["all"] for all agents
         config_data: Configuration data with repo objects
+        scope: Configuration scope to use (default: "default")
     """
     plugins = discover_agent_plugins()
 
@@ -114,7 +115,24 @@ def run_agents(agent_names: list[str], config_data: dict) -> None:
 
         try:
             agent = load_agent(agent_name, plugins)
-            agent.update(config_data)
+
+            # Validate scope for this agent
+            available_scopes = agent.get_scope_names()
+            if scope not in available_scopes:
+                message(
+                    f"Scope '{scope}' not supported by agent '{agent_name}'",
+                    MessageType.ERROR,
+                    VerbosityLevel.ALWAYS,
+                )
+                message(
+                    f"Available scopes: {', '.join(available_scopes)}",
+                    MessageType.NORMAL,
+                    VerbosityLevel.ALWAYS,
+                )
+                sys.exit(1)
+
+            message(f"Using scope: {scope}", MessageType.INFO, VerbosityLevel.VERBOSE)
+            agent.update(config_data, scope=scope)
         except SystemExit:
             raise
         except Exception as e:

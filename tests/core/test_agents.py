@@ -130,6 +130,7 @@ class TestRunAgents:
             "other": {"package_name": "am_agent_other"},
         }
         mock_agent_instance = Mock()
+        mock_agent_instance.get_scope_names.return_value = ["default"]
         mock_load_agent.return_value = mock_agent_instance
 
         config_data = {"hierarchy": []}
@@ -138,7 +139,7 @@ class TestRunAgents:
             run_agents(["claude"], config_data)
 
         mock_load_agent.assert_called_once()
-        mock_agent_instance.update.assert_called_once_with(config_data)
+        mock_agent_instance.update.assert_called_once_with(config_data, scope="default")
 
     @patch("agent_manager.core.agents.load_agent")
     @patch("agent_manager.core.agents.discover_agent_plugins")
@@ -149,6 +150,7 @@ class TestRunAgents:
             "agent2": {"package_name": "am_agent_agent2"},
         }
         mock_agent_instance = Mock()
+        mock_agent_instance.get_scope_names.return_value = ["default"]
         mock_load_agent.return_value = mock_agent_instance
 
         config_data = {"hierarchy": []}
@@ -175,6 +177,7 @@ class TestRunAgents:
         """Test that SystemExit is raised when agent fails."""
         mock_discover.return_value = {"claude": {"package_name": "am_agent_claude"}}
         mock_agent_instance = Mock()
+        mock_agent_instance.get_scope_names.return_value = ["default"]
         mock_agent_instance.update.side_effect = Exception("Update failed")
         mock_load_agent.return_value = mock_agent_instance
 
