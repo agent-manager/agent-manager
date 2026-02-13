@@ -142,6 +142,14 @@ class TestAbstractAgentRootLevelFiles:
         """Test that BASE_ROOT_LEVEL_FILES contains AGENTS.md."""
         assert "AGENTS.md" in AbstractAgent.BASE_ROOT_LEVEL_FILES
 
+    def test_get_additional_root_level_files_default(self):
+        """Test that get_additional_root_level_files() returns empty list by default."""
+        agent = ConcreteAgent()
+        additional = agent.get_additional_root_level_files()
+
+        assert isinstance(additional, list)
+        assert len(additional) == 0
+
 
 class TestAbstractAgentFileDiscovery:
     """Test cases for file discovery."""

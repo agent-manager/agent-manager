@@ -280,6 +280,22 @@ class AbstractAgent(ABC):
         """
         return []
 
+    def get_additional_root_level_files(self) -> list[str]:
+        """Get additional root-level files to discover beyond BASE_ROOT_LEVEL_FILES.
+
+        Override this method in agent plugins to add agent-specific root-level files.
+        For example, the Claude agent adds "CLAUDE.md".
+
+        Returns:
+            List of filenames to discover at repository root (e.g., ["CLAUDE.md"])
+
+        Example:
+            class ClaudeAgent(AbstractAgent):
+                def get_additional_root_level_files(self) -> list[str]:
+                    return ["CLAUDE.md"]
+        """
+        return []
+
     def get_repo_directory_name(self, scope: str | None = None) -> str:
         """Get the directory name to look for in repositories.
 
