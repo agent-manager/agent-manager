@@ -25,30 +25,54 @@ class ConfigCommands:
         config_subparsers = config_parser.add_subparsers(dest="config_command", help="Configuration commands")
 
         # config init
-        config_subparsers.add_parser("init", help="Initialize or reinitialize configuration")
+        config_subparsers.add_parser(
+            "init",
+            help="Initialize or reinitialize configuration",
+            description="Create a new configuration file at ~/.agent-manager/config.yaml through an interactive setup wizard. If a configuration already exists, it will be re-initialized.",
+        )
 
         # config show
-        show_parser = config_subparsers.add_parser("show", help="Display current hierarchy")
+        show_parser = config_subparsers.add_parser(
+            "show",
+            help="Display current hierarchy",
+            description="Display the current configuration hierarchy, showing each level's name, repository type, and URL in priority order (lowest to highest).",
+        )
         show_parser.add_argument("--resolve-paths", action="store_true", help="Resolve file:// URLs to absolute paths")
 
         # config add
-        add_parser = config_subparsers.add_parser("add", help="Add a new hierarchy level")
+        add_parser = config_subparsers.add_parser(
+            "add",
+            help="Add a new hierarchy level",
+            description="Add a new hierarchy level with a name and repository URL. The level is appended to the end (highest priority) unless --position is specified.",
+        )
         add_parser.add_argument("name", help="Name of the hierarchy level")
         add_parser.add_argument("url", help="Repository URL (git URL or file:// path)")
         add_parser.add_argument("--position", type=int, help="Position to insert (0-based, default: append to end)")
 
         # config remove
-        remove_parser = config_subparsers.add_parser("remove", help="Remove a hierarchy level")
+        remove_parser = config_subparsers.add_parser(
+            "remove",
+            help="Remove a hierarchy level",
+            description="Remove a hierarchy level by name from the configuration. This does not delete any cached repository data on disk.",
+        )
         remove_parser.add_argument("name", help="Name of the hierarchy level to remove")
 
         # config update
-        update_parser = config_subparsers.add_parser("update", help="Update an existing hierarchy level")
+        update_parser = config_subparsers.add_parser(
+            "update",
+            help="Update an existing hierarchy level",
+            description="Change the URL or name of an existing hierarchy level. At least one of --url or --rename must be provided.",
+        )
         update_parser.add_argument("name", help="Name of the hierarchy level to update")
         update_parser.add_argument("--url", help="New repository URL (git URL or file:// path)")
         update_parser.add_argument("--rename", help="New name for the hierarchy level")
 
         # config move
-        move_parser = config_subparsers.add_parser("move", help="Move a hierarchy level to a new position")
+        move_parser = config_subparsers.add_parser(
+            "move",
+            help="Move a hierarchy level to a new position",
+            description="Change the position of a hierarchy level within the priority order. Levels later in the list have higher priority and their values take precedence during merging.",
+        )
         move_parser.add_argument("name", help="Name of the hierarchy level to move")
         move_group = move_parser.add_mutually_exclusive_group(required=True)
         move_group.add_argument("--position", type=int, help="New position (0-based)")
@@ -56,18 +80,34 @@ class ConfigCommands:
         move_group.add_argument("--down", action="store_true", help="Move down one position")
 
         # config validate
-        config_subparsers.add_parser("validate", help="Validate all repository URLs")
+        config_subparsers.add_parser(
+            "validate",
+            help="Validate all repository URLs",
+            description="Check that all repository URLs in the hierarchy are valid and accessible. Reports which repositories pass or fail validation.",
+        )
 
         # config export
-        export_parser = config_subparsers.add_parser("export", help="Export configuration to a file or stdout")
+        export_parser = config_subparsers.add_parser(
+            "export",
+            help="Export configuration to a file or stdout",
+            description="Export the current configuration as YAML to a file or to stdout. Useful for backing up or sharing configurations.",
+        )
         export_parser.add_argument("file", nargs="?", help="Output file (default: stdout)")
 
         # config import
-        import_parser = config_subparsers.add_parser("import", help="Import configuration from a file")
+        import_parser = config_subparsers.add_parser(
+            "import",
+            help="Import configuration from a file",
+            description="Import a configuration from a YAML file, replacing the current configuration. You will be prompted before overwriting an existing configuration.",
+        )
         import_parser.add_argument("file", help="Input file to import")
 
         # config where
-        config_subparsers.add_parser("where", help="Show configuration file location")
+        config_subparsers.add_parser(
+            "where",
+            help="Show configuration file location",
+            description="Show the file paths for the configuration file, config directory, and repos directory, along with whether each exists on disk.",
+        )
 
     @staticmethod
     def process_cli_command(args: argparse.Namespace, config: Config) -> None:

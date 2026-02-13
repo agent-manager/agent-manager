@@ -32,22 +32,42 @@ class MergerCommands:
         mergers_subparsers = mergers_parser.add_subparsers(dest="mergers_command", help="Merger commands")
 
         # mergers list
-        mergers_subparsers.add_parser("list", help="List available merger plugins")
+        mergers_subparsers.add_parser(
+            "list",
+            help="List available merger plugins",
+            description="Show all registered mergers and their file extension mappings, the default fallback merger, and any available but unregistered merger plugins.",
+        )
 
         # mergers show
-        show_parser = mergers_subparsers.add_parser("show", help="Show preferences for a specific merger")
+        show_parser = mergers_subparsers.add_parser(
+            "show",
+            help="Show preferences for a specific merger",
+            description="Display the configurable preferences for a specific merger, including their types, default values, and valid ranges or choices.",
+        )
         show_parser.add_argument("name", help="Merger class name (e.g., JsonMerger)")
 
         # mergers configure
-        configure_parser = mergers_subparsers.add_parser("configure", help="Interactively configure merger preferences")
+        configure_parser = mergers_subparsers.add_parser(
+            "configure",
+            help="Interactively configure merger preferences",
+            description="Interactively prompt for preference values for each configurable merger (e.g., JSON indent level, YAML width) and save the results to the configuration file.",
+        )
         configure_parser.add_argument("--merger", help="Configure only a specific merger (e.g., JsonMerger)")
 
         # mergers enable
-        enable_parser = mergers_subparsers.add_parser("enable", help="Enable a merger plugin")
+        enable_parser = mergers_subparsers.add_parser(
+            "enable",
+            help="Enable a merger plugin",
+            description="Re-enable a previously disabled merger plugin so it will be available for file merging.",
+        )
         enable_parser.add_argument("name", help="Merger name (e.g., smart_markdown)")
 
         # mergers disable
-        disable_parser = mergers_subparsers.add_parser("disable", help="Disable a merger plugin")
+        disable_parser = mergers_subparsers.add_parser(
+            "disable",
+            help="Disable a merger plugin",
+            description="Disable a merger plugin. Disabled mergers will not be available for file merging; files that would use them will fall back to the default merger.",
+        )
         disable_parser.add_argument("name", help="Merger name (e.g., smart_markdown)")
 
     def process_cli_command(self, args: argparse.Namespace, config: Config) -> None:
