@@ -150,6 +150,36 @@ class TestAbstractAgentRootLevelFiles:
         assert isinstance(additional, list)
         assert len(additional) == 0
 
+    def test_get_root_level_files_combines_base_and_additional(self):
+        """Test that _get_root_level_files() combines BASE and additional files."""
+        agent = ConcreteAgent()
+        files = agent._get_root_level_files()
+
+        # Should contain at least AGENTS.md from BASE
+        assert "AGENTS.md" in files
+        assert isinstance(files, list)
+
+    def test_get_root_level_files_with_custom_agent(self):
+        """Test that agent-specific root-level files are included."""
+
+        class CustomAgent(AbstractAgent):
+            @property
+            def scopes(self):
+                from agent_manager.plugins.agents import ScopeConfig
+
+                return {"default": ScopeConfig(directory=Path.home() / ".testagent", description="Test")}
+
+            def get_additional_root_level_files(self) -> list[str]:
+                return ["CUSTOM.md", "AGENT.txt"]
+
+        agent = CustomAgent()
+        files = agent._get_root_level_files()
+
+        # Should have both BASE and custom files
+        assert "AGENTS.md" in files
+        assert "CUSTOM.md" in files
+        assert "AGENT.txt" in files
+
 
 class TestAbstractAgentFileDiscovery:
     """Test cases for file discovery."""
@@ -332,6 +362,82 @@ class TestAbstractAgentFileDiscovery:
         # Verify content
         jira_content = (agent.agent_directory / "agents" / "JIRA.md").read_text()
         assert "# JIRA Agent" in jira_content
+
+
+class TestAbstractAgentRootLevelDiscovery:
+    """Test cases for root-level file discovery in _discover_files."""
+
+    def test_discover_root_level_agents_md(self, tmp_path):
+        """Test that _discover_files finds AGENTS.md at repository root."""
+        # Create AGENTS.md at repo root
+        (tmp_path / "AGENTS.md").write_text("# Agents")
+
+        agent = ConcreteAgent()
+        files = agent._discover_files(tmp_path)
+
+        file_names = [f.name for f in files]
+        assert "AGENTS.md" in file_names
+        assert len(files) == 1
+
+    def test_discover_both_root_and_subdirectory_files(self, tmp_path):
+        """Test discovering both root-level and subdirectory files."""
+        # Root-level file
+        (tmp_path / "AGENTS.md").write_text("# Root Agents")
+
+        # Subdirectory file
+        agent_dir = tmp_path / ".testagent"
+        agent_dir.mkdir()
+        (agent_dir / "config.yaml").write_text("config: true")
+
+        agent = ConcreteAgent()
+        files = agent._discover_files(tmp_path)
+
+        file_names = [f.name for f in files]
+        assert "AGENTS.md" in file_names
+        assert "config.yaml" in file_names
+        assert len(files) == 2
+
+    def test_discover_files_root_before_subdirectory(self, tmp_path):
+        """Test that root-level files come before subdirectory files in results."""
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+
+        # Create AGENTS.md in both root and subdirectory
+        (repo_dir / "AGENTS.md").write_text("# Root level")
+
+        agent_dir = repo_dir / ".testagent"
+        agent_dir.mkdir()
+        (agent_dir / "AGENTS.md").write_text("# Subdirectory level")
+
+        agent = ConcreteAgent()
+        files = agent._discover_files(repo_dir)
+
+        agents_md_files = [f for f in files if f.name == "AGENTS.md"]
+        assert len(agents_md_files) == 2
+
+        root_agents = [f for f in agents_md_files if f.parent == repo_dir]
+        subdir_agents = [f for f in agents_md_files if f.parent != repo_dir]
+
+        root_index = files.index(root_agents[0])
+        subdir_index = files.index(subdir_agents[0])
+
+        assert root_index < subdir_index, "Root-level AGENTS.md should come before subdirectory AGENTS.md"
+
+    def test_discover_missing_root_level_files_gracefully(self, tmp_path):
+        """Test that missing root-level files don't cause errors."""
+        # Only create subdirectory files, no root-level AGENTS.md
+        agent_dir = tmp_path / ".testagent"
+        agent_dir.mkdir()
+        (agent_dir / "config.yaml").write_text("config: true")
+
+        agent = ConcreteAgent()
+        files = agent._discover_files(tmp_path)
+
+        # Should only find the subdirectory file
+        file_names = [f.name for f in files]
+        assert "config.yaml" in file_names
+        assert "AGENTS.md" not in file_names
+        assert len(files) == 1
 
 
 class TestAbstractAgentGetAgentDirectory:
