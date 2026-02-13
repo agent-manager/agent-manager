@@ -153,21 +153,39 @@ class TestAgentCommandsProcessAgentsCommand:
     """Test cases for process_agents_command method."""
 
     def test_no_subcommand_specified(self):
-        """Test error when no agents subcommand is specified."""
+        """Test that no subcommand shows friendly usage message."""
         args = Mock()
         args.agents_command = None
 
-        with patch("agent_manager.cli_extensions.agent_commands.message"):
-            with pytest.raises(SystemExit):
-                AgentCommands.process_agents_command(args)
+        messages = []
+
+        def capture_message(text, *args_inner, **kwargs):
+            messages.append(text)
+
+        with patch("agent_manager.cli_extensions.agent_commands.message", side_effect=capture_message):
+            AgentCommands.process_agents_command(args)
+
+        output = "\n".join(messages)
+        assert "Usage: agent-manager agents <command>" in output
+        assert "Available commands:" in output
+        assert "list" in output
+        assert "enable" in output
+        assert "disable" in output
 
     def test_no_agents_command_attribute(self):
-        """Test error when agents_command attribute is missing."""
+        """Test that missing agents_command attribute shows friendly usage."""
         args = Mock(spec=[])  # Mock with no attributes
 
-        with patch("agent_manager.cli_extensions.agent_commands.message"):
-            with pytest.raises(SystemExit):
-                AgentCommands.process_agents_command(args)
+        messages = []
+
+        def capture_message(text, *args_inner, **kwargs):
+            messages.append(text)
+
+        with patch("agent_manager.cli_extensions.agent_commands.message", side_effect=capture_message):
+            AgentCommands.process_agents_command(args)
+
+        output = "\n".join(messages)
+        assert "Usage: agent-manager agents <command>" in output
 
     @patch("agent_manager.cli_extensions.agent_commands.AgentCommands.list_agents")
     def test_processes_list_command(self, mock_list_agents):
