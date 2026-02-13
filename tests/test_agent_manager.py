@@ -5,7 +5,6 @@ from unittest.mock import Mock, patch
 import pytest
 
 from agent_manager.agent_manager import main
-from agent_manager.cli_extensions import MergerCommands
 
 
 class TestCLIArgumentParsing:
@@ -291,29 +290,27 @@ class TestNoCommand:
 
     def test_no_command_shows_help(self, capsys):
         """Test that running with no command shows help and exits cleanly."""
-        with patch("sys.argv", ["agent-manager"]):
-            with patch("agent_manager.agent_manager.Config") as mock_config:
+        with patch("sys.argv", ["agent-manager"]), patch("agent_manager.agent_manager.Config") as mock_config:
+            with patch("agent_manager.agent_manager.get_output"):
+                mock_config.return_value.ensure_directories = Mock()
+
+                main()
+
+                # Should show help message
+                captured = capsys.readouterr()
+                assert "usage:" in captured.out or "agent-manager" in captured.out
+
+    def test_no_command_does_not_call_process_cli(self):
+        """Test that running with no command doesn't call agent processing."""
+        with patch("sys.argv", ["agent-manager"]), patch("agent_manager.agent_manager.Config") as mock_config:
+            with patch("agent_manager.agent_manager.AgentCommands.process_cli_command") as mock_process:
                 with patch("agent_manager.agent_manager.get_output"):
                     mock_config.return_value.ensure_directories = Mock()
 
                     main()
 
-                    # Should show help message
-                    captured = capsys.readouterr()
-                    assert "usage:" in captured.out or "agent-manager" in captured.out
-
-    def test_no_command_does_not_call_process_cli(self):
-        """Test that running with no command doesn't call agent processing."""
-        with patch("sys.argv", ["agent-manager"]):
-            with patch("agent_manager.agent_manager.Config") as mock_config:
-                with patch("agent_manager.agent_manager.AgentCommands.process_cli_command") as mock_process:
-                    with patch("agent_manager.agent_manager.get_output"):
-                        mock_config.return_value.ensure_directories = Mock()
-
-                        main()
-
-                        # Should NOT call process_cli_command
-                        mock_process.assert_not_called()
+                    # Should NOT call process_cli_command
+                    mock_process.assert_not_called()
 
 
 class TestRunCommand:
@@ -631,8 +628,6 @@ class TestFullIntegration:
     def test_full_merge_integration(self, mock_config_data, temp_output_dir, test_data_path):
         """Test full integration: read config, merge files, write to TestAgent."""
         import json
-        import tempfile
-        from pathlib import Path
 
         import yaml
 
@@ -694,7 +689,6 @@ class TestFullIntegration:
 
     def test_run_command_flow(self, mock_config_data, temp_output_dir):
         """Test the run command flow through the CLI."""
-        from pathlib import Path
 
         with patch("sys.argv", ["agent-manager", "run"]):
             with patch("agent_manager.agent_manager.Config") as mock_config:
