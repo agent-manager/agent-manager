@@ -317,24 +317,6 @@ class TestRunCommand:
     """Test run command execution."""
 
     def test_run_command_explicit(self):
-        """Test explicit 'run' command."""
-        mock_config_data = {"hierarchy": []}
-
-        with patch("sys.argv", ["agent-manager", "run"]):
-            with patch("agent_manager.agent_manager.Config") as mock_config:
-                with patch("agent_manager.agent_manager.update_repositories"):
-                    with patch("agent_manager.agent_manager.AgentCommands.process_cli_command") as mock_agent:
-                        with patch("agent_manager.agent_manager.get_output"):
-                            mock_config.return_value.read.return_value = mock_config_data
-
-                            main()
-
-                            mock_agent.assert_called_once()
-                            args, config_data = mock_agent.call_args[0]
-                            assert args.command == "run"
-                            assert config_data == mock_config_data
-
-    def test_run_command_explicit(self):
         """Test that run command must be explicitly specified."""
         mock_config_data = {"hierarchy": []}
 
