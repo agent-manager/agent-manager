@@ -101,6 +101,9 @@ class AbstractAgent(ABC):
         "*.egg-info",
     ]
 
+    # Default root-level files to discover from repositories
+    BASE_ROOT_LEVEL_FILES = ["AGENTS.md"]
+
     def __init__(self):
         """Initialize the agent with hook registries and merger registry."""
         # Hook registries: file_pattern -> hook_function
@@ -277,6 +280,35 @@ class AbstractAgent(ABC):
         """
         return []
 
+    def get_additional_root_level_files(self) -> list[str]:
+        """Get additional root-level files to discover beyond BASE_ROOT_LEVEL_FILES.
+
+        Override this method in agent plugins to add agent-specific root-level files.
+        For example, the Claude agent adds "CLAUDE.md".
+
+        Returns:
+            List of filenames to discover at repository root (e.g., ["CLAUDE.md"])
+
+        Example:
+            class ClaudeAgent(AbstractAgent):
+                def get_additional_root_level_files(self) -> list[str]:
+                    return ["CLAUDE.md"]
+        """
+        return []
+
+    def _get_root_level_files(self) -> list[str]:
+        """Get complete list of root-level files to discover.
+
+        Combines BASE_ROOT_LEVEL_FILES with agent-specific files from
+        get_additional_root_level_files(). Result is cached per agent instance.
+
+        Returns:
+            Combined list of filenames to discover at repository root
+        """
+        if not hasattr(self, "_cached_root_level_files"):
+            self._cached_root_level_files = self.BASE_ROOT_LEVEL_FILES + self.get_additional_root_level_files()
+        return self._cached_root_level_files
+
     def get_repo_directory_name(self, scope: str | None = None) -> str:
         """Get the directory name to look for in repositories.
 
@@ -295,52 +327,58 @@ class AbstractAgent(ABC):
         return self.get_scope_directory(scope).name
 
     def _discover_files(self, repo_path: Path, scope: str | None = None) -> list[Path]:
-        """Discover configuration files in agent-specific directory within repository.
+        """Discover configuration files from repository.
 
-        Searches for files in <repo_path>/<agent_directory_name>/ recursively.
-        For example, if agent_directory is ~/.claude, this searches repo_path/.claude/
+        Searches for files in two locations:
+        1. Root-level files: AGENTS.md, CLAUDE.md, etc. (defined by BASE_ROOT_LEVEL_FILES
+           and get_additional_root_level_files())
+        2. Agent subdirectory: <repo_path>/<agent_directory_name>/ (e.g., repo/.claude/)
 
-        This allows repos to contain configurations for multiple agents:
-        - repo/.claude/agents/JIRA.md
-        - repo/.cursor/rules.txt
-        - repo/.copilot/settings.json
-
-        Each agent only discovers files in its own directory.
+        Root-level files are discovered first, ensuring they merge BEFORE agent subdirectory
+        files when both exist with the same filename. This allows subdirectory files to
+        override/extend root-level files.
 
         Args:
             repo_path: Path to the repository
             scope: Scope name for determining which directory to look in
 
         Returns:
-            List of configuration file paths found in agent directory
+            List of configuration file paths (root-level files first, then subdirectory files)
         """
         found_files = []
 
-        # Get the agent directory name to look for in repos
+        # === Discover root-level files ===
+        root_level_files = self._get_root_level_files()
+        for filename in root_level_files:
+            file_path = repo_path / filename
+            if file_path.exists() and file_path.is_file():
+                found_files.append(file_path)
+
+        # === Discover agent subdirectory files ===
         agent_dir_name = self.get_repo_directory_name(scope)
-
-        # Look for agent-specific directory in the repo
         agent_repo_dir = repo_path / agent_dir_name
-        if not agent_repo_dir.exists() or not agent_repo_dir.is_dir():
-            return []
 
-        # Recursively find all files in the agent directory
-        for item in agent_repo_dir.rglob("*"):
-            # Skip directories
-            if item.is_dir():
-                continue
+        if agent_repo_dir.exists() and agent_repo_dir.is_dir():
+            # Recursively find all files in the agent directory
+            for item in agent_repo_dir.rglob("*"):
+                if item.is_dir():
+                    continue
 
-            # Skip if matches exclude pattern
-            should_exclude = False
-            for pattern in self.exclude_patterns:
-                if fnmatch.fnmatch(item.name, pattern):
-                    should_exclude = True
-                    break
+                should_exclude = False
+                for pattern in self.exclude_patterns:
+                    if fnmatch.fnmatch(item.name, pattern):
+                        should_exclude = True
+                        break
 
-            if not should_exclude:
-                found_files.append(item)
+                if not should_exclude:
+                    found_files.append(item)
 
-        return sorted(found_files)  # Sort for consistent ordering
+        def sort_key(path: Path) -> tuple:
+            """Sort root-level files before subdirectory files, then by name."""
+            is_subdirectory = path.parent != repo_path
+            return (is_subdirectory, path.name)
+
+        return sorted(found_files, key=sort_key)
 
     def get_agent_directory(self, scope: str | None = None) -> Path:
         """Get the agent's configuration directory.

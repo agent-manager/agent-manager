@@ -27,7 +27,7 @@ class TestAgentCommandsAddCliArguments:
         assert "run" in calls
 
     @patch("agent_manager.cli_extensions.agent_commands.get_agent_names")
-    def test_adds_agents_subcommands(self, mock_get_agent_names):
+    def test_adds_agents_list_subcommand(self, mock_get_agent_names):
         """Test that add_cli_arguments adds list, enable, and disable subcommands to agents."""
         mock_get_agent_names.return_value = ["claude"]
 
@@ -48,7 +48,7 @@ class TestAgentCommandsAddCliArguments:
 
         AgentCommands.add_cli_arguments(mock_subparsers)
 
-        # Check that list, enable, and disable subcommands were added to agents
+        # Check that all three subcommands were added to agents
         calls = [call[0][0] for call in mock_agents_subparsers.add_parser.call_args_list]
         assert "list" in calls
         assert "enable" in calls
@@ -62,6 +62,7 @@ class TestAgentCommandsAddCliArguments:
         mock_subparsers = Mock()
         mock_agents_parser = Mock()
         mock_run_parser = Mock()
+        mock_agents_parser.add_subparsers.return_value = Mock()
 
         def add_parser_side_effect(name, **kwargs):
             if name == "agents":
@@ -71,14 +72,19 @@ class TestAgentCommandsAddCliArguments:
             return Mock()
 
         mock_subparsers.add_parser.side_effect = add_parser_side_effect
-        mock_agents_parser.add_subparsers.return_value = Mock()
 
         AgentCommands.add_cli_arguments(mock_subparsers)
 
-        # Check that add_argument was called on the run parser with choices including discovered agents
-        choices_call = [call for call in mock_run_parser.add_argument.call_args_list if "choices" in call[1]]
-        assert len(choices_call) == 1
-        assert choices_call[0][1]["choices"] == ["all", "claude", "custom"]
+        # Check that add_argument was called on run parser with choices including discovered agents
+        call_args = mock_run_parser.add_argument.call_args_list
+        # Find the --agent argument
+        agent_arg = None
+        for call in call_args:
+            if len(call[0]) > 0 and call[0][0] == "--agent":
+                agent_arg = call
+                break
+        assert agent_arg is not None
+        assert agent_arg[1]["choices"] == ["all", "claude", "custom"]
 
     @patch("agent_manager.cli_extensions.agent_commands.get_agent_names")
     def test_adds_agent_argument_with_no_plugins(self, mock_get_agent_names):
@@ -88,6 +94,7 @@ class TestAgentCommandsAddCliArguments:
         mock_subparsers = Mock()
         mock_agents_parser = Mock()
         mock_run_parser = Mock()
+        mock_agents_parser.add_subparsers.return_value = Mock()
 
         def add_parser_side_effect(name, **kwargs):
             if name == "agents":
@@ -97,14 +104,19 @@ class TestAgentCommandsAddCliArguments:
             return Mock()
 
         mock_subparsers.add_parser.side_effect = add_parser_side_effect
-        mock_agents_parser.add_subparsers.return_value = Mock()
 
         AgentCommands.add_cli_arguments(mock_subparsers)
 
         # Should still add argument with just "all"
-        choices_call = [call for call in mock_run_parser.add_argument.call_args_list if "choices" in call[1]]
-        assert len(choices_call) == 1
-        assert choices_call[0][1]["choices"] == ["all"]
+        call_args = mock_run_parser.add_argument.call_args_list
+        # Find the --agent argument
+        agent_arg = None
+        for call in call_args:
+            if len(call[0]) > 0 and call[0][0] == "--agent":
+                agent_arg = call
+                break
+        assert agent_arg is not None
+        assert agent_arg[1]["choices"] == ["all"]
 
 
 class TestAgentCommandsProcessCliCommand:
@@ -138,7 +150,7 @@ class TestAgentCommandsProcessCliCommand:
 class TestAgentCommandsProcessAgentsCommand:
     """Test cases for process_agents_command method."""
 
-    def test_no_subcommand_shows_usage(self):
+    def test_no_subcommand_specified(self):
         """Test that no subcommand shows friendly usage message."""
         args = Mock()
         args.agents_command = None
@@ -158,7 +170,7 @@ class TestAgentCommandsProcessAgentsCommand:
         assert "enable" in output
         assert "disable" in output
 
-    def test_no_agents_command_attribute_shows_usage(self):
+    def test_no_agents_command_attribute(self):
         """Test that missing agents_command attribute shows friendly usage."""
         args = Mock(spec=[])  # Mock with no attributes
 
@@ -189,13 +201,13 @@ class TestAgentCommandsListAgents:
 
     @patch("agent_manager.cli_extensions.agent_commands.get_disabled_plugins")
     @patch("agent_manager.cli_extensions.agent_commands.discover_agent_plugins")
-    def test_list_agents_with_plugins(self, mock_discover, mock_disabled):
+    def test_list_agents_with_plugins(self, mock_discover, mock_get_disabled):
         """Test listing agents when plugins are available."""
-        mock_disabled.return_value = {}
         mock_discover.return_value = {
             "claude": {"package_name": "am_agent_claude", "source": "package"},
             "custom": {"package_name": "am_agent_custom", "source": "package"},
         }
+        mock_get_disabled.return_value = {"agents": []}
 
         messages = []
 
@@ -215,10 +227,10 @@ class TestAgentCommandsListAgents:
 
     @patch("agent_manager.cli_extensions.agent_commands.get_disabled_plugins")
     @patch("agent_manager.cli_extensions.agent_commands.discover_agent_plugins")
-    def test_list_agents_no_plugins(self, mock_discover, mock_disabled):
+    def test_list_agents_no_plugins(self, mock_discover, mock_get_disabled):
         """Test listing agents when no plugins are available."""
-        mock_disabled.return_value = {}
         mock_discover.return_value = {}
+        mock_get_disabled.return_value = {"agents": []}
 
         messages = []
 
@@ -235,14 +247,14 @@ class TestAgentCommandsListAgents:
 
     @patch("agent_manager.cli_extensions.agent_commands.get_disabled_plugins")
     @patch("agent_manager.cli_extensions.agent_commands.discover_agent_plugins")
-    def test_list_agents_sorted(self, mock_discover, mock_disabled):
+    def test_list_agents_sorted(self, mock_discover, mock_get_disabled):
         """Test that agents are listed in sorted order."""
-        mock_disabled.return_value = {}
         mock_discover.return_value = {
             "zebra": {"package_name": "am_agent_zebra", "source": "package"},
             "alpha": {"package_name": "am_agent_alpha", "source": "package"},
             "middle": {"package_name": "am_agent_middle", "source": "package"},
         }
+        mock_get_disabled.return_value = {"agents": []}
 
         messages = []
 

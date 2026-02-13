@@ -36,16 +36,15 @@ class TestAgent(AbstractAgent):
     _repo_directory_name: str = ".testagent"
 
     @property
-    def scopes(self) -> dict:
-        """Define available scopes for the test agent."""
-        from agent_manager.plugins.agents.agent import ScopeConfig
+    def scopes(self):
+        """Define available scopes for the test agent.
 
-        return {
-            "default": ScopeConfig(
-                directory=self.agent_directory,
-                description="Test agent output directory",
-            ),
-        }
+        Returns:
+            Dictionary mapping scope names to ScopeConfig objects
+        """
+        from agent_manager.plugins.agents import ScopeConfig
+
+        return {"default": ScopeConfig(directory=self.agent_directory, description="Test agent directory")}
 
     def register_hooks(self):
         """Register any custom hooks for the test agent.
