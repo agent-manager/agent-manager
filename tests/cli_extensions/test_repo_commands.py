@@ -1,8 +1,6 @@
 """Tests for cli_extensions/repo_commands.py - Repository CLI commands."""
 
-from unittest.mock import Mock, patch
-
-import pytest
+from unittest.mock import Mock
 
 from agent_manager.cli_extensions.repo_commands import RepoCommands
 
@@ -38,88 +36,6 @@ class TestRepoCommandsAddCliArguments:
         assert call_args[1]["action"] == "store_true"
 
 
-class TestRepoCommandsProcessCliCommand:
-    """Test cases for process_cli_command method."""
-
-    @patch("agent_manager.cli_extensions.repo_commands.update_repositories")
-    def test_processes_update_command(self, mock_update):
-        """Test processing of update command without force."""
-        args = Mock()
-        args.force = False
-        config_data = {"hierarchy": [{"name": "org", "repo": Mock()}]}
-
-        RepoCommands.process_cli_command(args, config_data)
-
-        mock_update.assert_called_once_with(config_data, force=False)
-
-    @patch("agent_manager.cli_extensions.repo_commands.update_repositories")
-    def test_processes_update_command_with_force(self, mock_update):
-        """Test processing of update command with force flag."""
-        args = Mock()
-        args.force = True
-        config_data = {"hierarchy": [{"name": "org", "repo": Mock()}]}
-
-        RepoCommands.process_cli_command(args, config_data)
-
-        mock_update.assert_called_once_with(config_data, force=True)
-
-    @patch("agent_manager.cli_extensions.repo_commands.update_repositories")
-    def test_processes_update_command_empty_hierarchy(self, mock_update):
-        """Test processing of update command with empty hierarchy."""
-        args = Mock()
-        args.force = False
-        config_data = {"hierarchy": []}
-
-        RepoCommands.process_cli_command(args, config_data)
-
-        mock_update.assert_called_once_with(config_data, force=False)
-
-    @patch("agent_manager.cli_extensions.repo_commands.update_repositories")
-    def test_processes_update_command_multiple_repos(self, mock_update):
-        """Test processing of update command with multiple repositories."""
-        args = Mock()
-        args.force = False
-        config_data = {
-            "hierarchy": [
-                {"name": "org", "repo": Mock()},
-                {"name": "team", "repo": Mock()},
-                {"name": "personal", "repo": Mock()},
-            ]
-        }
-
-        RepoCommands.process_cli_command(args, config_data)
-
-        mock_update.assert_called_once_with(config_data, force=False)
-
-
-class TestRepoCommandsEdgeCases:
-    """Test cases for edge cases and special scenarios."""
-
-    @patch("agent_manager.cli_extensions.repo_commands.update_repositories")
-    def test_processes_command_with_missing_force_attribute(self, mock_update):
-        """Test processing when args doesn't have force attribute."""
-        args = Mock(spec=[])  # No attributes
-        config_data = {"hierarchy": []}
-
-        RepoCommands.process_cli_command(args, config_data)
-
-        # Should default to False when force attribute is missing
-        mock_update.assert_called_once_with(config_data, force=False)
-
-    @patch("agent_manager.cli_extensions.repo_commands.update_repositories")
-    def test_processes_command_handles_update_error(self, mock_update):
-        """Test handling of errors from update_repositories."""
-        mock_update.side_effect = Exception("Update failed")
-
-        args = Mock()
-        args.force = False
-        config_data = {"hierarchy": []}
-
-        # Should propagate the exception
-        with pytest.raises(Exception, match="Update failed"):
-            RepoCommands.process_cli_command(args, config_data)
-
-
 class TestRepoCommandsIntegration:
     """Integration tests for repo commands."""
 
@@ -144,9 +60,8 @@ class TestRepoCommandsIntegration:
         assert args.command == "update"
         assert args.force is True
 
-    @patch("agent_manager.cli_extensions.repo_commands.update_repositories")
-    def test_full_command_flow(self, mock_update):
-        """Test full command flow from argparse to execution."""
+    def test_full_command_flow(self):
+        """Test full command flow from argparse to parsing."""
         import argparse
 
         # Set up parser
@@ -154,11 +69,7 @@ class TestRepoCommandsIntegration:
         subparsers = parser.add_subparsers(dest="command")
         RepoCommands.add_cli_arguments(subparsers)
 
-        # Parse and process
+        # Parse and verify update command with force
         args = parser.parse_args(["update", "--force"])
-        config_data = {"hierarchy": [{"name": "org", "repo": Mock()}]}
-
-        RepoCommands.process_cli_command(args, config_data)
-
-        # Verify execution
-        mock_update.assert_called_once_with(config_data, force=True)
+        assert args.command == "update"
+        assert args.force is True

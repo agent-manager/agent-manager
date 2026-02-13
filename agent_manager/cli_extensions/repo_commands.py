@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from agent_manager.core import discover_repo_types, update_repositories
+from agent_manager.core import discover_repo_types
 from agent_manager.output import MessageType, VerbosityLevel, message
 from agent_manager.utils import get_disabled_plugins, set_plugin_enabled
 
@@ -115,13 +115,3 @@ class RepoCommands:
         if not set_plugin_enabled("repos", name, enabled=False):
             sys.exit(1)
 
-    @staticmethod
-    def process_cli_command(args, config_data: dict) -> None:
-        """Process the update command for repositories.
-
-        Args:
-            args: Parsed command-line arguments
-            config_data: Configuration data with repo objects
-        """
-        force_update = getattr(args, "force", False)
-        update_repositories(config_data, force=force_update)
