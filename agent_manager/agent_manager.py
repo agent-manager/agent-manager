@@ -11,14 +11,58 @@ from agent_manager.config import Config
 from agent_manager.core import create_default_merger_registry, update_repositories
 
 
+# Grouped command help text
+COMMAND_GROUPS = """
+runtime commands:
+  run                 Run an agent (default command)
+  update              Update all repositories in the hierarchy
+
+plugin commands:
+  agents              Manage agent plugins
+  repos               Manage repository types
+  mergers             Manage content mergers
+
+configuration commands:
+  config              Manage configuration
+"""
+
+
+class GroupedHelpFormatter(argparse.RawDescriptionHelpFormatter):
+    """Custom formatter that hides the subparser choices from positional arguments."""
+
+    def _metavar_formatter(self, action, default_metavar):
+        if action.choices is not None:
+            # For subparser actions, just show the metavar without listing choices
+            result = action.metavar if action.metavar is not None else ""
+
+            def format_fn(tuple_size):
+                if isinstance(result, tuple):
+                    return result
+                return (result,) * tuple_size
+
+            return format_fn
+        return super()._metavar_formatter(action, default_metavar)
+
+    def _format_action(self, action):
+        # Skip formatting subparser actions entirely (we show them in epilog)
+        if isinstance(action, argparse._SubParsersAction):
+            return ""
+        return super()._format_action(action)
+
+
 def main() -> None:
     """Main entry point for the agent-manager CLI."""
     # Parse arguments with subcommands
-    parser = argparse.ArgumentParser(description="Manage your AI agents from a hierarchy of directories")
+    parser = argparse.ArgumentParser(
+        description="Manage your AI agents from a hierarchy of directories",
+        formatter_class=GroupedHelpFormatter,
+        epilog=COMMAND_GROUPS,
+    )
     parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity (-v, -vv, -vvv)")
     parser.add_argument("--no-color", action="store_true", help="Disable colored output")
 
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    # Use metavar='' to hide the default {cmd1,cmd2,...} display
+    subparsers = parser.add_subparsers(dest="command", metavar="<command>")
 
     # Add CLI arguments from all command extensions
     AgentCommands.add_cli_arguments(subparsers)
