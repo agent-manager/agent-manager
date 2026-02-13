@@ -1,9 +1,6 @@
 """Tests for plugins/repos/local_repo.py - Local directory repository implementation."""
 
-from pathlib import Path
 from unittest.mock import patch
-
-import pytest
 
 from agent_manager.plugins.repos.local_repo import LocalRepo
 
@@ -94,7 +91,7 @@ class TestLocalRepoValidateUrl:
             tmp_path.mkdir(exist_ok=True)
 
             with patch("agent_manager.plugins.repos.local_repo.message"):
-                result = LocalRepo.validate_url("file://~/test")
+                LocalRepo.validate_url("file://~/test")
 
             assert mock_resolve.called
 

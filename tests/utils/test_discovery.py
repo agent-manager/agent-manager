@@ -8,14 +8,14 @@ import pytest
 import yaml
 
 from agent_manager.utils.discovery import (
+    _discover_by_entry_points,
+    _discover_by_package_prefix,
     discover_external_plugins,
     filter_disabled_plugins,
     get_disabled_plugins,
     is_plugin_disabled,
     load_plugin_class,
     set_plugin_enabled,
-    _discover_by_package_prefix,
-    _discover_by_entry_points,
 )
 
 

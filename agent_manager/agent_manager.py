@@ -5,11 +5,10 @@
 import argparse
 import sys
 
-from agent_manager.output import MessageType, VerbosityLevel, get_output, message
 from agent_manager.cli_extensions import AgentCommands, ConfigCommands, MergerCommands, RepoCommands
 from agent_manager.config import Config
 from agent_manager.core import create_default_merger_registry, update_repositories
-
+from agent_manager.output import MessageType, VerbosityLevel, get_output, message
 
 # Grouped command help text
 COMMAND_GROUPS = """

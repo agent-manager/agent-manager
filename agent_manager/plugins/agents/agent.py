@@ -6,8 +6,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from agent_manager.output import MessageType, VerbosityLevel, message
 from agent_manager.core import MergerRegistry
+from agent_manager.output import MessageType, VerbosityLevel, message
 
 
 @dataclass
@@ -157,7 +157,7 @@ class AbstractAgent(ABC):
         # Post-merge: Add metadata header to merged files
         self.post_merge_hooks["*"] = self._add_metadata_header
 
-    def register_hooks(self) -> None:
+    def register_hooks(self) -> None:  # noqa: B027
         """Register agent-specific hooks for pre/post merge processing.
 
         Override this method to register additional hooks for specific file patterns.
@@ -168,7 +168,6 @@ class AbstractAgent(ABC):
                 self.pre_merge_hooks[".cursorrules"] = self._validate_cursorrules
                 self.post_merge_hooks["*.json"] = self._format_json
         """
-        pass
 
     def _clean_markdown(self, content: str, entry: dict, file_path: Path) -> str:
         """Clean up markdown content before merging.

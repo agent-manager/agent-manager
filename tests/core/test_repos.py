@@ -1,6 +1,5 @@
 """Tests for core/repos.py - Repository discovery and factory functions."""
 
-from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -127,7 +126,7 @@ class TestBuildRepoTypeMap:
         repo_map = build_repo_type_map()
 
         for repo_type, repo_class in repo_map.items():
-            assert repo_class.REPO_TYPE == repo_type
+            assert repo_type == repo_class.REPO_TYPE
 
 
 class TestGetRepoTypeMap:
@@ -252,9 +251,8 @@ class TestUpdateRepositories:
 
         config_data = {"hierarchy": [{"name": "org", "repo": repo}]}
 
-        with patch("agent_manager.core.repos.message"):
-            with pytest.raises(SystemExit):
-                update_repositories(config_data)
+        with patch("agent_manager.core.repos.message"), pytest.raises(SystemExit):
+            update_repositories(config_data)
 
     def test_continues_after_single_repo_error(self):
         """Test that other repos are updated even if one fails."""
@@ -272,9 +270,8 @@ class TestUpdateRepositories:
             ]
         }
 
-        with patch("agent_manager.core.repos.message"):
-            with pytest.raises(SystemExit):
-                update_repositories(config_data)
+        with patch("agent_manager.core.repos.message"), pytest.raises(SystemExit):
+            update_repositories(config_data)
 
         # repo2 should still be attempted
         repo2.update.assert_called_once()
@@ -320,12 +317,9 @@ class TestReposIntegration:
         """Test that all discovered repo types can be instantiated."""
         repo_map = get_repo_type_map()
 
-        for repo_type, repo_class in repo_map.items():
+        for repo_type, _repo_class in repo_map.items():
             # Create appropriate URL for each type
-            if repo_type == "git":
-                url = "https://github.com/test/repo"
-            else:  # file/local
-                url = "file:///tmp/test"
+            url = "https://github.com/test/repo" if repo_type == "git" else "file:///tmp/test"
 
             repo = create_repo("test", url, tmp_path, repo_type)
 
@@ -348,11 +342,8 @@ class TestReposIntegration:
 
         for repo_type, expected_class in repo_map.items():
             # Create appropriate URL
-            if repo_type == "git":
-                url = "https://github.com/test/repo"
-            else:
-                url = "file:///tmp/test"
+            url = "https://github.com/test/repo" if repo_type == "git" else "file:///tmp/test"
 
             repo = create_repo("test", url, tmp_path, repo_type)
 
-            assert type(repo) == expected_class
+            assert type(repo) is expected_class

@@ -130,7 +130,6 @@ class AgentCommands:
             message("Use 'agent-manager agents enable <name>' to re-enable", MessageType.NORMAL, VerbosityLevel.ALWAYS)
             message("", MessageType.NORMAL, VerbosityLevel.ALWAYS)
 
-        total = len(plugins) + len(disabled)
         message(f"Total: {len(plugins)} enabled, {len(disabled)} disabled", MessageType.NORMAL, VerbosityLevel.ALWAYS)
         message("", MessageType.NORMAL, VerbosityLevel.ALWAYS)
 

@@ -5,7 +5,6 @@ import sys
 from agent_manager.output import MessageType, VerbosityLevel, message
 from agent_manager.utils import discover_external_plugins, filter_disabled_plugins, load_plugin_class
 
-
 # Package prefix for agent plugins
 AGENT_PLUGIN_PREFIX = "am_agent_"
 
@@ -94,10 +93,7 @@ def run_agents(agent_names: list[str], config_data: dict, scope: str = "default"
     plugins = discover_agent_plugins()
 
     # Determine which agents to run
-    if agent_names == ["all"] or "all" in agent_names:
-        agents_to_run = sorted(plugins.keys())
-    else:
-        agents_to_run = agent_names
+    agents_to_run = sorted(plugins.keys()) if agent_names == ["all"] or "all" in agent_names else agent_names
 
     # Check if we have any agents
     if not agents_to_run:

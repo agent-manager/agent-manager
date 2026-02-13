@@ -2,8 +2,6 @@
 
 from unittest.mock import Mock, patch
 
-import pytest
-
 from agent_manager.cli_extensions.agent_commands import AgentCommands
 
 

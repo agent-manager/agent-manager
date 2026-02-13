@@ -33,10 +33,7 @@ def is_file_url(url: str) -> bool:
         return True
 
     # Current or parent directory
-    if url == "." or url == "..":
-        return True
-
-    return False
+    return bool(url == "." or url == "..")
 
 
 def resolve_file_path(url: str) -> Path:

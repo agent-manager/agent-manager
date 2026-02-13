@@ -3,9 +3,9 @@
 import argparse
 import sys
 
-from agent_manager.output import MessageType, VerbosityLevel, message
 from agent_manager.config import Config
 from agent_manager.core import MergerRegistry
+from agent_manager.output import MessageType, VerbosityLevel, message
 from agent_manager.utils import get_disabled_plugins, set_plugin_enabled
 
 

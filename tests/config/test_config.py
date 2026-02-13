@@ -1,12 +1,12 @@
 """Tests for config/config.py - Configuration management."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 import yaml
 
-from agent_manager.config.config import Config, ConfigData, ConfigError, HierarchyEntry
+from agent_manager.config.config import Config, ConfigError
 
 
 class TestConfigError:
@@ -103,30 +103,36 @@ class TestConfigEnsureDirectories:
         config_dir = tmp_path / "config"
         config = Config(config_dir=config_dir)
 
-        with patch("pathlib.Path.mkdir", side_effect=PermissionError):
-            with patch("agent_manager.config.config.message"):
-                with pytest.raises(SystemExit):
-                    config.ensure_directories()
+        with (
+            patch("pathlib.Path.mkdir", side_effect=PermissionError),
+            patch("agent_manager.config.config.message"),
+            pytest.raises(SystemExit),
+        ):
+            config.ensure_directories()
 
     def test_handles_os_error(self, tmp_path):
         """Test that ensure_directories handles OS errors."""
         config_dir = tmp_path / "config"
         config = Config(config_dir=config_dir)
 
-        with patch("pathlib.Path.mkdir", side_effect=OSError("Disk full")):
-            with patch("agent_manager.config.config.message"):
-                with pytest.raises(SystemExit):
-                    config.ensure_directories()
+        with (
+            patch("pathlib.Path.mkdir", side_effect=OSError("Disk full")),
+            patch("agent_manager.config.config.message"),
+            pytest.raises(SystemExit),
+        ):
+            config.ensure_directories()
 
     def test_handles_generic_exception(self, tmp_path):
         """Test that ensure_directories handles unexpected exceptions."""
         config_dir = tmp_path / "config"
         config = Config(config_dir=config_dir)
 
-        with patch("pathlib.Path.mkdir", side_effect=RuntimeError("Unexpected error")):
-            with patch("agent_manager.config.config.message"):
-                with pytest.raises(SystemExit):
-                    config.ensure_directories()
+        with (
+            patch("pathlib.Path.mkdir", side_effect=RuntimeError("Unexpected error")),
+            patch("agent_manager.config.config.message"),
+            pytest.raises(SystemExit),
+        ):
+            config.ensure_directories()
 
 
 class TestConfigValidateRepoUrl:
@@ -185,13 +191,15 @@ class TestConfigValidateRepoUrlEdgeCases:
         url = "https://github.com/test/repo"
 
         # Mock detect_repo_types to return a type, but discover_repo_types to return empty
-        with patch("agent_manager.config.config.Config.detect_repo_types", return_value=["nonexistent"]):
-            with patch("agent_manager.config.config.discover_repo_types", return_value=[]):
-                with patch("agent_manager.config.config.message"):
-                    result = Config.validate_repo_url(url)
+        with (
+            patch("agent_manager.config.config.Config.detect_repo_types", return_value=["nonexistent"]),
+            patch("agent_manager.config.config.discover_repo_types", return_value=[]),
+            patch("agent_manager.config.config.message"),
+        ):
+            result = Config.validate_repo_url(url)
 
-                    # Should return False and log internal error
-                    assert result is False
+            # Should return False and log internal error
+            assert result is False
 
 
 class TestConfigDetectRepoTypes:
@@ -464,9 +472,8 @@ class TestConfigWrite:
         config_data = {"hierarchy": [{"name": "org", "url": "https://github.com/org/repo", "repo_type": "git"}]}
 
         # Simulate unexpected exception during YAML dump
-        with patch("yaml.dump", side_effect=RuntimeError("Unexpected error")):
-            with pytest.raises(SystemExit):
-                config.write(config_data)
+        with patch("yaml.dump", side_effect=RuntimeError("Unexpected error")), pytest.raises(SystemExit):
+            config.write(config_data)
 
 
 class TestConfigRead:
@@ -485,10 +492,12 @@ class TestConfigRead:
 
         config = Config(config_dir=config_dir)
 
-        with patch("agent_manager.config.config.message"):
-            with patch("agent_manager.config.config.create_repo") as mock_create:
-                mock_create.return_value = Mock()
-                loaded = config.read()
+        with (
+            patch("agent_manager.config.config.message"),
+            patch("agent_manager.config.config.create_repo") as mock_create,
+        ):
+            mock_create.return_value = Mock()
+            loaded = config.read()
 
         assert loaded["hierarchy"][0]["name"] == "org"
         assert "repo" in loaded["hierarchy"][0]
@@ -498,9 +507,8 @@ class TestConfigRead:
         config_dir = tmp_path / "config"
         config = Config(config_dir=config_dir)
 
-        with patch("agent_manager.config.config.message"):
-            with pytest.raises(SystemExit):
-                config.read()
+        with patch("agent_manager.config.config.message"), pytest.raises(SystemExit):
+            config.read()
 
     def test_read_handles_empty_file(self, tmp_path):
         """Test that read handles empty configuration file."""
@@ -512,9 +520,8 @@ class TestConfigRead:
 
         config = Config(config_dir=config_dir)
 
-        with patch("agent_manager.config.config.message"):
-            with pytest.raises(SystemExit):
-                config.read()
+        with patch("agent_manager.config.config.message"), pytest.raises(SystemExit):
+            config.read()
 
     def test_read_handles_invalid_config(self, tmp_path):
         """Test that read handles invalid configuration."""
@@ -527,9 +534,8 @@ class TestConfigRead:
 
         config = Config(config_dir=config_dir)
 
-        with patch("agent_manager.config.config.message"):
-            with pytest.raises(SystemExit):
-                config.read()
+        with patch("agent_manager.config.config.message"), pytest.raises(SystemExit):
+            config.read()
 
 
 class TestConfigExists:
@@ -566,11 +572,13 @@ class TestConfigInitialize:
         # Ensure directories exist
         config.ensure_directories()
 
-        with patch("agent_manager.config.config.message"):
-            with patch("builtins.input", side_effect=['["org"]', "https://github.com/org/repo"]):
-                with patch("agent_manager.config.config.Config.validate_repo_url", return_value=True):
-                    with patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]):
-                        config.initialize()
+        with (
+            patch("agent_manager.config.config.message"),
+            patch("builtins.input", side_effect=['["org"]', "https://github.com/org/repo"]),
+            patch("agent_manager.config.config.Config.validate_repo_url", return_value=True),
+            patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]),
+        ):
+            config.initialize()
 
         assert config_dir.exists()
         assert config.config_file.exists()
@@ -597,9 +605,11 @@ class TestConfigInitialize:
         config.ensure_directories()
         config.config_file.touch()  # Create existing file
 
-        with patch("agent_manager.config.config.message"):
-            with patch("builtins.input", return_value="no"):  # Say no to overwrite
-                config.initialize(skip_if_already_created=False)
+        with (
+            patch("agent_manager.config.config.message"),
+            patch("builtins.input", return_value="no"),  # Say no to overwrite
+        ):
+            config.initialize(skip_if_already_created=False)
 
         # File should still exist but not be modified (just touched, so empty)
         assert config.config_file.exists()
@@ -612,13 +622,13 @@ class TestConfigInitialize:
         config.ensure_directories()
         config.config_file.touch()  # Create existing file
 
-        with patch("agent_manager.config.config.message"):
-            # yes to overwrite, hierarchy list, then URL for org level
-            inputs = ["yes", '["org"]', "https://github.com/org/repo"]
-            with patch("builtins.input", side_effect=inputs):
-                with patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]):
-                    with patch("agent_manager.config.config.Config.validate_repo_url", return_value=True):
-                        config.initialize(skip_if_already_created=False)
+        with (
+            patch("agent_manager.config.config.message"),
+            patch("builtins.input", side_effect=["yes", '["org"]', "https://github.com/org/repo"]),
+            patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]),
+            patch("agent_manager.config.config.Config.validate_repo_url", return_value=True),
+        ):
+            config.initialize(skip_if_already_created=False)
 
         # Config file should be updated with content
         assert config.config_file.exists()
@@ -630,12 +640,16 @@ class TestConfigInitialize:
         config = Config(config_dir=config_dir)
         config.ensure_directories()
 
-        with patch("agent_manager.config.config.message"):
-            # First provide a dict (not a list), then valid list
-            with patch("builtins.input", side_effect=['{"key": "value"}', '["org"]', "https://github.com/org/repo"]):
-                with patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]):
-                    with patch("agent_manager.config.config.Config.validate_repo_url", return_value=True):
-                        config.initialize()
+        with (
+            patch("agent_manager.config.config.message"),
+            patch(
+                "builtins.input",
+                side_effect=['{"key": "value"}', '["org"]', "https://github.com/org/repo"],
+            ),
+            patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]),
+            patch("agent_manager.config.config.Config.validate_repo_url", return_value=True),
+        ):
+            config.initialize()
 
         assert config.config_file.exists()
 
@@ -645,12 +659,16 @@ class TestConfigInitialize:
         config = Config(config_dir=config_dir)
         config.ensure_directories()
 
-        with patch("agent_manager.config.config.message"):
-            # First provide syntactically invalid input, then valid
-            with patch("builtins.input", side_effect=["[invalid", '["org"]', "https://github.com/org/repo"]):
-                with patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]):
-                    with patch("agent_manager.config.config.Config.validate_repo_url", return_value=True):
-                        config.initialize()
+        with (
+            patch("agent_manager.config.config.message"),
+            patch(
+                "builtins.input",
+                side_effect=["[invalid", '["org"]', "https://github.com/org/repo"],
+            ),
+            patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]),
+            patch("agent_manager.config.config.Config.validate_repo_url", return_value=True),
+        ):
+            config.initialize()
 
         assert config.config_file.exists()
 
@@ -660,12 +678,16 @@ class TestConfigInitialize:
         config = Config(config_dir=config_dir)
         config.ensure_directories()
 
-        with patch("agent_manager.config.config.message"):
-            # First provide empty URL, then valid URL
-            with patch("builtins.input", side_effect=['["org"]', "", "https://github.com/org/repo"]):
-                with patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]):
-                    with patch("agent_manager.config.config.Config.validate_repo_url", return_value=True):
-                        config.initialize()
+        with (
+            patch("agent_manager.config.config.message"),
+            patch(
+                "builtins.input",
+                side_effect=['["org"]', "", "https://github.com/org/repo"],
+            ),
+            patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]),
+            patch("agent_manager.config.config.Config.validate_repo_url", return_value=True),
+        ):
+            config.initialize()
 
         assert config.config_file.exists()
 
@@ -675,13 +697,20 @@ class TestConfigInitialize:
         config = Config(config_dir=config_dir)
         config.ensure_directories()
 
-        with patch("agent_manager.config.config.message"):
-            # First URL has no matching types, second has one
-            with patch("builtins.input", side_effect=['["org"]', "invalid://bad", "https://github.com/org/repo"]):
-                # First call returns empty, second returns git, then one more for validation
-                with patch("agent_manager.config.config.Config.detect_repo_types", side_effect=[[], ["git"]]):
-                    with patch("agent_manager.config.config.Config.validate_repo_url", return_value=True):
-                        config.initialize()
+        with (
+            patch("agent_manager.config.config.message"),
+            patch(
+                "builtins.input",
+                side_effect=['["org"]', "invalid://bad", "https://github.com/org/repo"],
+            ),
+            # First call returns empty, second returns git, then one more for validation
+            patch(
+                "agent_manager.config.config.Config.detect_repo_types",
+                side_effect=[[], ["git"]],
+            ),
+            patch("agent_manager.config.config.Config.validate_repo_url", return_value=True),
+        ):
+            config.initialize()
 
         assert config.config_file.exists()
 
@@ -691,12 +720,16 @@ class TestConfigInitialize:
         config = Config(config_dir=config_dir)
         config.ensure_directories()
 
-        with patch("agent_manager.config.config.message"):
-            # Use comma-separated format instead of Python list
-            with patch("builtins.input", side_effect=["org, team, personal", "url1", "url2", "url3"]):
-                with patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]):
-                    with patch("agent_manager.config.config.Config.validate_repo_url", return_value=True):
-                        config.initialize()
+        with (
+            patch("agent_manager.config.config.message"),
+            patch(
+                "builtins.input",
+                side_effect=["org, team, personal", "url1", "url2", "url3"],
+            ),
+            patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]),
+            patch("agent_manager.config.config.Config.validate_repo_url", return_value=True),
+        ):
+            config.initialize()
 
         # Verify the hierarchy was parsed correctly
         data = config.read()
@@ -711,12 +744,16 @@ class TestConfigInitialize:
         config = Config(config_dir=config_dir)
         config.ensure_directories()
 
-        with patch("agent_manager.config.config.message"):
-            # Extra whitespace around entries
-            with patch("builtins.input", side_effect=["  org  ,  team  ", "url1", "url2"]):
-                with patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]):
-                    with patch("agent_manager.config.config.Config.validate_repo_url", return_value=True):
-                        config.initialize()
+        with (
+            patch("agent_manager.config.config.message"),
+            patch(
+                "builtins.input",
+                side_effect=["  org  ,  team  ", "url1", "url2"],
+            ),
+            patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]),
+            patch("agent_manager.config.config.Config.validate_repo_url", return_value=True),
+        ):
+            config.initialize()
 
         data = config.read()
         assert data["hierarchy"][0]["name"] == "org"
@@ -728,11 +765,13 @@ class TestConfigInitialize:
         config = Config(config_dir=config_dir)
         config.ensure_directories()
 
-        with patch("agent_manager.config.config.message"):
-            with patch("builtins.input", side_effect=['["org", "team"]', "url1", "url2"]):
-                with patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]):
-                    with patch("agent_manager.config.config.Config.validate_repo_url", return_value=True):
-                        config.initialize()
+        with (
+            patch("agent_manager.config.config.message"),
+            patch("builtins.input", side_effect=['["org", "team"]', "url1", "url2"]),
+            patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]),
+            patch("agent_manager.config.config.Config.validate_repo_url", return_value=True),
+        ):
+            config.initialize()
 
         data = config.read()
         assert len(data["hierarchy"]) == 2
@@ -745,12 +784,16 @@ class TestConfigInitialize:
         config = Config(config_dir=config_dir)
         config.ensure_directories()
 
-        with patch("agent_manager.config.config.message"):
-            # Empty entry between commas, then valid input
-            with patch("builtins.input", side_effect=["org, , team", "org, team", "url1", "url2"]):
-                with patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]):
-                    with patch("agent_manager.config.config.Config.validate_repo_url", return_value=True):
-                        config.initialize()
+        with (
+            patch("agent_manager.config.config.message"),
+            patch(
+                "builtins.input",
+                side_effect=["org, , team", "org, team", "url1", "url2"],
+            ),
+            patch("agent_manager.config.config.Config.detect_repo_types", return_value=["git"]),
+            patch("agent_manager.config.config.Config.validate_repo_url", return_value=True),
+        ):
+            config.initialize()
 
         # Should have retried and accepted the valid input
         data = config.read()
@@ -876,11 +919,16 @@ class TestConfigFileUrlResolution:
         try:
             os.chdir(tmp_path)
 
-            with patch("agent_manager.config.config.message"):
-                with patch("builtins.input", side_effect=['["org"]', "file://./repos"]):
-                    with patch("agent_manager.config.config.Config.validate_repo_url", return_value=True):
-                        with patch("agent_manager.config.config.Config.detect_repo_types", return_value=["file"]):
-                            config.initialize()
+            with (
+                patch("agent_manager.config.config.message"),
+                patch("builtins.input", side_effect=['["org"]', "file://./repos"]),
+                patch("agent_manager.config.config.Config.validate_repo_url", return_value=True),
+                patch(
+                    "agent_manager.config.config.Config.detect_repo_types",
+                    return_value=["file"],
+                ),
+            ):
+                config.initialize()
 
             # Read back the config
             with open(config.config_file) as f:
@@ -915,11 +963,16 @@ class TestConfigFileUrlResolution:
         try:
             os.chdir(tmp_path)
 
-            with patch("agent_manager.config.config.message"):
-                with patch("agent_manager.config.config.Config.validate_repo_url", return_value=True):
-                    with patch("agent_manager.config.config.Config.detect_repo_types", return_value=["file"]):
-                        with patch("agent_manager.config.config.create_repo"):
-                            config.add_level("personal", "file://./local")
+            with (
+                patch("agent_manager.config.config.message"),
+                patch("agent_manager.config.config.Config.validate_repo_url", return_value=True),
+                patch(
+                    "agent_manager.config.config.Config.detect_repo_types",
+                    return_value=["file"],
+                ),
+                patch("agent_manager.config.config.create_repo"),
+            ):
+                config.add_level("personal", "file://./local")
 
             # Read back the config
             with open(config.config_file) as f:
@@ -955,11 +1008,16 @@ class TestConfigFileUrlResolution:
         try:
             os.chdir(tmp_path)
 
-            with patch("agent_manager.config.config.message"):
-                with patch("agent_manager.config.config.Config.validate_repo_url", return_value=True):
-                    with patch("agent_manager.config.config.Config.detect_repo_types", return_value=["file"]):
-                        with patch("agent_manager.config.config.create_repo"):
-                            config.update_level("org", new_url="file://./new_local")
+            with (
+                patch("agent_manager.config.config.message"),
+                patch("agent_manager.config.config.Config.validate_repo_url", return_value=True),
+                patch(
+                    "agent_manager.config.config.Config.detect_repo_types",
+                    return_value=["file"],
+                ),
+                patch("agent_manager.config.config.create_repo"),
+            ):
+                config.update_level("org", new_url="file://./new_local")
 
             # Read back the config
             with open(config.config_file) as f:

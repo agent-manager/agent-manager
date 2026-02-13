@@ -255,14 +255,15 @@ class TestMergerCommandsConfigureCommand:
         with open(mock_config.config_file, "w") as f:
             yaml.dump(config_data, f)
 
-        with patch("builtins.input", return_value=""):  # Skip all prompts
-            with patch("agent_manager.cli_extensions.merger_commands.message"):
-                # Mock the write to avoid re-serialization issues
-                with patch.object(mock_config, "write"):
-                    merger_manager.configure_mergers(mock_config, specific_merger="JsonMerger")
+        with (
+            patch("builtins.input", return_value=""),  # Skip all prompts
+            patch("agent_manager.cli_extensions.merger_commands.message"),
+            patch.object(mock_config, "write"),
+        ):
+            merger_manager.configure_mergers(mock_config, specific_merger="JsonMerger")
 
         # Read the original config we wrote
-        with open(mock_config.config_file, "r") as f:
+        with open(mock_config.config_file) as f:
             loaded_config = yaml.safe_load(f)
         assert "mergers" in loaded_config
 
@@ -331,9 +332,8 @@ class TestMergerCommandsConfigureCommand:
         config_data = {"hierarchy": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}]}
         mock_config.write(config_data)
 
-        with patch("agent_manager.cli_extensions.merger_commands.message"):
-            with pytest.raises(SystemExit):
-                merger_manager.configure_mergers(mock_config, specific_merger="InvalidMerger")
+        with patch("agent_manager.cli_extensions.merger_commands.message"), pytest.raises(SystemExit):
+            merger_manager.configure_mergers(mock_config, specific_merger="InvalidMerger")
 
     def test_configure_int_validation_min_boundary(self, merger_manager, mock_config):
         """Test that int values below minimum are clamped."""
@@ -346,19 +346,21 @@ class TestMergerCommandsConfigureCommand:
             yaml.dump(config_data, f)
 
         # JsonMerger has 'indent' with min=0, provide -1
-        with patch("builtins.input", side_effect=["-1", ""]):  # -1 for indent, then skip rest
-            with patch("agent_manager.cli_extensions.merger_commands.message"):
-                written_config = None
+        with (
+            patch("builtins.input", side_effect=["-1", ""]),  # -1 for indent, then skip rest
+            patch("agent_manager.cli_extensions.merger_commands.message"),
+        ):
+            written_config = None
 
-                def capture_write(data):
-                    nonlocal written_config
-                    written_config = data
+            def capture_write(data):
+                nonlocal written_config
+                written_config = data
 
-                with patch.object(mock_config, "write", side_effect=capture_write):
-                    merger_manager.configure_mergers(mock_config, specific_merger="JsonMerger")
+            with patch.object(mock_config, "write", side_effect=capture_write):
+                merger_manager.configure_mergers(mock_config, specific_merger="JsonMerger")
 
-                # Should clamp to minimum
-                assert written_config["mergers"]["JsonMerger"]["indent"] == 0
+            # Should clamp to minimum
+            assert written_config["mergers"]["JsonMerger"]["indent"] == 0
 
     def test_configure_int_validation_max_boundary(self, merger_manager, mock_config):
         """Test that int values above maximum are clamped."""
@@ -371,19 +373,21 @@ class TestMergerCommandsConfigureCommand:
             yaml.dump(config_data, f)
 
         # YamlMerger has 'indent' and 'width'. Width has max=200, provide 999
-        with patch("builtins.input", side_effect=["", "999"]):  # skip indent, 999 for width
-            with patch("agent_manager.cli_extensions.merger_commands.message"):
-                written_config = None
+        with (
+            patch("builtins.input", side_effect=["", "999"]),  # skip indent, 999 for width
+            patch("agent_manager.cli_extensions.merger_commands.message"),
+        ):
+            written_config = None
 
-                def capture_write(data):
-                    nonlocal written_config
-                    written_config = data
+            def capture_write(data):
+                nonlocal written_config
+                written_config = data
 
-                with patch.object(mock_config, "write", side_effect=capture_write):
-                    merger_manager.configure_mergers(mock_config, specific_merger="YamlMerger")
+            with patch.object(mock_config, "write", side_effect=capture_write):
+                merger_manager.configure_mergers(mock_config, specific_merger="YamlMerger")
 
-                # Should clamp to maximum
-                assert written_config["mergers"]["YamlMerger"]["width"] == 200
+            # Should clamp to maximum
+            assert written_config["mergers"]["YamlMerger"]["width"] == 200
 
     def test_configure_int_validation_invalid_input(self, merger_manager, mock_config):
         """Test that invalid int input is handled gracefully."""
@@ -396,15 +400,17 @@ class TestMergerCommandsConfigureCommand:
             yaml.dump(config_data, f)
 
         # Provide non-int value for indent
-        with patch("builtins.input", side_effect=["invalid", ""]):  # invalid string, then skip rest
-            with patch("agent_manager.cli_extensions.merger_commands.message") as mock_message:
-                with patch.object(mock_config, "write"):
-                    merger_manager.configure_mergers(mock_config, specific_merger="JsonMerger")
+        with (
+            patch("builtins.input", side_effect=["invalid", ""]),  # invalid string, then skip rest
+            patch("agent_manager.cli_extensions.merger_commands.message") as mock_message,
+            patch.object(mock_config, "write"),
+        ):
+            merger_manager.configure_mergers(mock_config, specific_merger="JsonMerger")
 
-                # Should show warning
-                assert any(
-                    call[0][0].startswith("Invalid") or "Invalid" in str(call) for call in mock_message.call_args_list
-                )
+            # Should show warning
+            assert any(
+                call[0][0].startswith("Invalid") or "Invalid" in str(call) for call in mock_message.call_args_list
+            )
 
     def test_configure_bool_validation_yes_variants(self, merger_manager, mock_config):
         """Test that various 'yes' inputs are recognized as True."""
@@ -418,20 +424,22 @@ class TestMergerCommandsConfigureCommand:
 
         for yes_input in ["y", "yes", "true", "1"]:
             # JsonMerger has 'sort_keys' as bool
-            with patch(
-                "builtins.input", side_effect=["", yes_input, ""]
-            ):  # skip indent, yes for sort_keys, skip ensure_ascii
-                with patch("agent_manager.cli_extensions.merger_commands.message"):
-                    written_config = None
+            with (
+                patch(
+                    "builtins.input", side_effect=["", yes_input, ""]
+                ),  # skip indent, yes for sort_keys, skip ensure_ascii
+                patch("agent_manager.cli_extensions.merger_commands.message"),
+            ):
+                written_config = None
 
-                    def capture_write(data):
-                        nonlocal written_config
-                        written_config = data
+                def capture_write(data):
+                    nonlocal written_config
+                    written_config = data
 
-                    with patch.object(mock_config, "write", side_effect=capture_write):
-                        merger_manager.configure_mergers(mock_config, specific_merger="JsonMerger")
+                with patch.object(mock_config, "write", side_effect=capture_write):
+                    merger_manager.configure_mergers(mock_config, specific_merger="JsonMerger")
 
-                    assert written_config["mergers"]["JsonMerger"]["sort_keys"] is True
+                assert written_config["mergers"]["JsonMerger"]["sort_keys"] is True
 
     def test_configure_bool_validation_no_variants(self, merger_manager, mock_config):
         """Test that non-yes inputs are recognized as False."""
@@ -444,18 +452,20 @@ class TestMergerCommandsConfigureCommand:
             yaml.dump(config_data, f)
 
         # JsonMerger has 'sort_keys' as bool
-        with patch("builtins.input", side_effect=["", "n", ""]):  # skip indent, no for sort_keys, skip ensure_ascii
-            with patch("agent_manager.cli_extensions.merger_commands.message"):
-                written_config = None
+        with (
+            patch("builtins.input", side_effect=["", "n", ""]),  # skip indent, no for sort_keys, skip ensure_ascii
+            patch("agent_manager.cli_extensions.merger_commands.message"),
+        ):
+            written_config = None
 
-                def capture_write(data):
-                    nonlocal written_config
-                    written_config = data
+            def capture_write(data):
+                nonlocal written_config
+                written_config = data
 
-                with patch.object(mock_config, "write", side_effect=capture_write):
-                    merger_manager.configure_mergers(mock_config, specific_merger="JsonMerger")
+            with patch.object(mock_config, "write", side_effect=capture_write):
+                merger_manager.configure_mergers(mock_config, specific_merger="JsonMerger")
 
-                assert written_config["mergers"]["JsonMerger"]["sort_keys"] is False
+            assert written_config["mergers"]["JsonMerger"]["sort_keys"] is False
 
     def test_configure_string_choice_validation_valid(self, merger_manager, mock_config):
         """Test that valid string choice is accepted."""
@@ -468,18 +478,20 @@ class TestMergerCommandsConfigureCommand:
             yaml.dump(config_data, f)
 
         # MarkdownMerger has 'separator_style' with choices
-        with patch("builtins.input", side_effect=["heading", ""]):  # valid choice, then skip rest
-            with patch("agent_manager.cli_extensions.merger_commands.message"):
-                written_config = None
+        with (
+            patch("builtins.input", side_effect=["heading", ""]),  # valid choice, then skip rest
+            patch("agent_manager.cli_extensions.merger_commands.message"),
+        ):
+            written_config = None
 
-                def capture_write(data):
-                    nonlocal written_config
-                    written_config = data
+            def capture_write(data):
+                nonlocal written_config
+                written_config = data
 
-                with patch.object(mock_config, "write", side_effect=capture_write):
-                    merger_manager.configure_mergers(mock_config, specific_merger="MarkdownMerger")
+            with patch.object(mock_config, "write", side_effect=capture_write):
+                merger_manager.configure_mergers(mock_config, specific_merger="MarkdownMerger")
 
-                assert written_config["mergers"]["MarkdownMerger"]["separator_style"] == "heading"
+            assert written_config["mergers"]["MarkdownMerger"]["separator_style"] == "heading"
 
     def test_configure_string_choice_validation_invalid(self, merger_manager, mock_config):
         """Test that invalid string choice shows warning."""
@@ -492,13 +504,14 @@ class TestMergerCommandsConfigureCommand:
             yaml.dump(config_data, f)
 
         # MarkdownMerger has 'separator_style' with choices, provide invalid
-        with patch("builtins.input", side_effect=["invalid_choice", ""]):  # invalid choice, then skip rest
-            with patch("agent_manager.cli_extensions.merger_commands.message") as mock_message:
-                with patch.object(mock_config, "write"):
-                    merger_manager.configure_mergers(mock_config, specific_merger="MarkdownMerger")
+        with (
+            patch("builtins.input", side_effect=["invalid_choice", ""]),  # invalid choice, then skip rest
+            patch("agent_manager.cli_extensions.merger_commands.message") as mock_message,
+            patch.object(mock_config, "write"),
+        ):
+            merger_manager.configure_mergers(mock_config, specific_merger="MarkdownMerger")
 
-                # Should show warning about invalid choice
-                assert any(
-                    "Invalid choice" in str(call) or "invalid" in str(call).lower()
-                    for call in mock_message.call_args_list
-                )
+            # Should show warning about invalid choice
+            assert any(
+                "Invalid choice" in str(call) or "invalid" in str(call).lower() for call in mock_message.call_args_list
+            )

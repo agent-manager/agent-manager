@@ -5,9 +5,9 @@ import sys
 
 import yaml
 
-from agent_manager.output import MessageType, VerbosityLevel, message
 from agent_manager.config import Config
 from agent_manager.core import create_repo
+from agent_manager.output import MessageType, VerbosityLevel, message
 
 
 class ConfigCommands:

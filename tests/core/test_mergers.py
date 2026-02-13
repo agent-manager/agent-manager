@@ -1,11 +1,10 @@
 """Tests for core/mergers.py - Merger discovery and factory functions."""
 
 from unittest.mock import Mock, patch
-import pytest
 
-from agent_manager.core.mergers import create_default_merger_registry, discover_merger_classes
 from agent_manager.core.merger_registry import MergerRegistry
-from agent_manager.plugins.mergers import AbstractMerger, JsonMerger, YamlMerger, MarkdownMerger, TextMerger
+from agent_manager.core.mergers import create_default_merger_registry, discover_merger_classes
+from agent_manager.plugins.mergers import AbstractMerger, JsonMerger, MarkdownMerger, TextMerger, YamlMerger
 
 
 class TestDiscoverMergerClassesImportError:
@@ -14,7 +13,6 @@ class TestDiscoverMergerClassesImportError:
     def test_discover_handles_import_error(self):
         """Test that discover_merger_classes handles ImportError gracefully."""
         from agent_manager.core import mergers
-        import agent_manager.plugins.mergers as mergers_package
 
         # Mock iter_modules to include a module that will fail to import
         with patch("pkgutil.iter_modules") as mock_iter:

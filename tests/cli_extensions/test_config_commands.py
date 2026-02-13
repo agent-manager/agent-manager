@@ -1,8 +1,6 @@
 """Tests for cli_extensions/config_commands.py - Config CLI commands."""
 
-import sys
-from pathlib import Path
-from unittest.mock import Mock, mock_open, patch
+from unittest.mock import Mock, patch
 
 import pytest
 import yaml
@@ -228,9 +226,8 @@ class TestConfigCommandsProcessCliCommand:
 
         config = Mock(spec=Config)
 
-        with patch("agent_manager.cli_extensions.config_commands.message"):
-            with pytest.raises(SystemExit):
-                ConfigCommands.process_cli_command(args, config)
+        with patch("agent_manager.cli_extensions.config_commands.message"), pytest.raises(SystemExit):
+            ConfigCommands.process_cli_command(args, config)
 
     def test_shows_help_when_no_subcommand(self):
         """Test that no subcommand shows available commands instead of error."""
@@ -276,9 +273,8 @@ class TestConfigCommandsDisplay:
         config = Mock(spec=Config)
         config.exists.return_value = False
 
-        with patch("agent_manager.cli_extensions.config_commands.message"):
-            with pytest.raises(SystemExit):
-                ConfigCommands.display(config)
+        with patch("agent_manager.cli_extensions.config_commands.message"), pytest.raises(SystemExit):
+            ConfigCommands.display(config)
 
     @patch("agent_manager.cli_extensions.config_commands.create_repo")
     def test_display_resolves_paths(self, mock_create, tmp_path):
@@ -330,18 +326,16 @@ class TestConfigCommandsValidateAll:
         }
         config.validate_repo_url.side_effect = [True, False]
 
-        with patch("agent_manager.cli_extensions.config_commands.message"):
-            with pytest.raises(SystemExit):
-                ConfigCommands.validate_all(config)
+        with patch("agent_manager.cli_extensions.config_commands.message"), pytest.raises(SystemExit):
+            ConfigCommands.validate_all(config)
 
     def test_validates_all_errors_when_no_config(self):
         """Test that validate_all errors when config doesn't exist."""
         config = Mock(spec=Config)
         config.exists.return_value = False
 
-        with patch("agent_manager.cli_extensions.config_commands.message"):
-            with pytest.raises(SystemExit):
-                ConfigCommands.validate_all(config)
+        with patch("agent_manager.cli_extensions.config_commands.message"), pytest.raises(SystemExit):
+            ConfigCommands.validate_all(config)
 
 
 class TestConfigCommandsExportConfig:
@@ -410,9 +404,8 @@ class TestConfigCommandsExportConfig:
         config = Mock(spec=Config)
         config.exists.return_value = False
 
-        with patch("agent_manager.cli_extensions.config_commands.message"):
-            with pytest.raises(SystemExit):
-                ConfigCommands.export_config(config, "output.yaml")
+        with patch("agent_manager.cli_extensions.config_commands.message"), pytest.raises(SystemExit):
+            ConfigCommands.export_config(config, "output.yaml")
 
 
 class TestConfigCommandsImportConfig:
@@ -447,9 +440,11 @@ class TestConfigCommandsImportConfig:
         config.exists.return_value = True
         config.config_file = tmp_path / "config.yaml"
 
-        with patch("agent_manager.cli_extensions.config_commands.message"):
-            with patch("builtins.input", return_value="no"):
-                ConfigCommands.import_config(config, str(input_file))
+        with (
+            patch("agent_manager.cli_extensions.config_commands.message"),
+            patch("builtins.input", return_value="no"),
+        ):
+            ConfigCommands.import_config(config, str(input_file))
 
         # Should not write if user says no
         config.write.assert_not_called()
@@ -458,9 +453,8 @@ class TestConfigCommandsImportConfig:
         """Test that import handles missing input file."""
         config = Mock(spec=Config)
 
-        with patch("agent_manager.cli_extensions.config_commands.message"):
-            with pytest.raises(SystemExit):
-                ConfigCommands.import_config(config, "nonexistent.yaml")
+        with patch("agent_manager.cli_extensions.config_commands.message"), pytest.raises(SystemExit):
+            ConfigCommands.import_config(config, "nonexistent.yaml")
 
     def test_import_handles_invalid_yaml(self, tmp_path):
         """Test that import handles invalid YAML."""
@@ -469,9 +463,8 @@ class TestConfigCommandsImportConfig:
 
         config = Mock(spec=Config)
 
-        with patch("agent_manager.cli_extensions.config_commands.message"):
-            with pytest.raises(SystemExit):
-                ConfigCommands.import_config(config, str(input_file))
+        with patch("agent_manager.cli_extensions.config_commands.message"), pytest.raises(SystemExit):
+            ConfigCommands.import_config(config, str(input_file))
 
     def test_import_validates_structure(self, tmp_path):
         """Test that import validates configuration structure."""
@@ -481,9 +474,8 @@ class TestConfigCommandsImportConfig:
 
         config = Mock(spec=Config)
 
-        with patch("agent_manager.cli_extensions.config_commands.message"):
-            with pytest.raises(SystemExit):
-                ConfigCommands.import_config(config, str(input_file))
+        with patch("agent_manager.cli_extensions.config_commands.message"), pytest.raises(SystemExit):
+            ConfigCommands.import_config(config, str(input_file))
 
 
 class TestConfigCommandsShowLocation:
@@ -548,9 +540,8 @@ class TestConfigCommandsEdgeCases:
         config.exists.return_value = True
         config.read.return_value = {"hierarchy": [{"name": "org", "url": "url", "repo_type": "git", "repo": Mock()}]}
 
-        with patch("agent_manager.cli_extensions.config_commands.message"):
-            with pytest.raises(SystemExit):
-                ConfigCommands.export_config(config, str(output_file))
+        with patch("agent_manager.cli_extensions.config_commands.message"), pytest.raises(SystemExit):
+            ConfigCommands.export_config(config, str(output_file))
 
     def test_import_accepts_yes_variations(self, tmp_path):
         """Test that import accepts various yes responses."""
@@ -565,9 +556,11 @@ class TestConfigCommandsEdgeCases:
         config.config_file = tmp_path / "config.yaml"
 
         for yes_response in ["yes", "y", "YES", "Y"]:
-            with patch("agent_manager.cli_extensions.config_commands.message"):
-                with patch("builtins.input", return_value=yes_response):
-                    ConfigCommands.import_config(config, str(input_file))
+            with (
+                patch("agent_manager.cli_extensions.config_commands.message"),
+                patch("builtins.input", return_value=yes_response),
+            ):
+                ConfigCommands.import_config(config, str(input_file))
 
             config.write.assert_called()
             config.write.reset_mock()
