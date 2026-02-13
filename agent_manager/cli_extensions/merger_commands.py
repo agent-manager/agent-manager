@@ -83,7 +83,9 @@ class MergerCommands:
             message("Available commands:", MessageType.NORMAL, VerbosityLevel.ALWAYS)
             message("  list        List available merger plugins", MessageType.NORMAL, VerbosityLevel.ALWAYS)
             message("  show        Show preferences for a specific merger", MessageType.NORMAL, VerbosityLevel.ALWAYS)
-            message("  configure   Interactively configure merger preferences", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message(
+                "  configure   Interactively configure merger preferences", MessageType.NORMAL, VerbosityLevel.ALWAYS
+            )
             message("  enable      Enable a merger plugin", MessageType.NORMAL, VerbosityLevel.ALWAYS)
             message("  disable     Disable a merger plugin", MessageType.NORMAL, VerbosityLevel.ALWAYS)
             return

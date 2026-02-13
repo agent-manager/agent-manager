@@ -108,7 +108,9 @@ class AgentCommands:
                 MessageType.NORMAL,
                 VerbosityLevel.ALWAYS,
             )
-            message("Agent plugins have package names starting with 'am_agent_'", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message(
+                "Agent plugins have package names starting with 'am_agent_'", MessageType.NORMAL, VerbosityLevel.ALWAYS
+            )
             message("", MessageType.NORMAL, VerbosityLevel.ALWAYS)
             return
 

@@ -110,7 +110,9 @@ class RepoCommands:
             message("Use 'agent-manager repos enable <name>' to re-enable", MessageType.NORMAL, VerbosityLevel.ALWAYS)
             message("", MessageType.NORMAL, VerbosityLevel.ALWAYS)
 
-        message(f"Total: {len(repo_types)} enabled, {len(disabled)} disabled", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+        message(
+            f"Total: {len(repo_types)} enabled, {len(disabled)} disabled", MessageType.NORMAL, VerbosityLevel.ALWAYS
+        )
         message("", MessageType.NORMAL, VerbosityLevel.ALWAYS)
 
     @staticmethod
@@ -132,4 +134,3 @@ class RepoCommands:
         """
         if not set_plugin_enabled("repos", name, enabled=False):
             sys.exit(1)
-
