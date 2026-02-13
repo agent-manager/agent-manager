@@ -35,6 +35,18 @@ class TestAgent(AbstractAgent):
     # Set the repo directory name to ".testagent"
     _repo_directory_name: str = ".testagent"
 
+    @property
+    def scopes(self) -> dict:
+        """Define available scopes for the test agent."""
+        from agent_manager.plugins.agents.agent import ScopeConfig
+
+        return {
+            "default": ScopeConfig(
+                directory=self.agent_directory,
+                description="Test agent output directory",
+            ),
+        }
+
     def register_hooks(self):
         """Register any custom hooks for the test agent.
 

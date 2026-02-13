@@ -19,7 +19,7 @@ class TestCLIArgumentParsing:
         assert exc_info.value.code == 0
         captured = capsys.readouterr()
         assert "Manage your AI agents from a hierarchy of directories" in captured.out
-        assert "Available commands" in captured.out
+        assert "runtime commands" in captured.out
 
     def test_version_verbosity_levels(self):
         """Test verbosity levels are correctly parsed."""
@@ -35,7 +35,7 @@ class TestCLIArgumentParsing:
             with patch("sys.argv", ["agent-manager"] + args + ["config", "where"]):
                 with patch("agent_manager.agent_manager.Config") as mock_config:
                     with patch("agent_manager.agent_manager.ConfigCommands.process_cli_command"):
-                        with patch("agent_manager.output.get_output") as mock_output:
+                        with patch("agent_manager.agent_manager.get_output") as mock_output:
                             mock_output_instance = Mock(verbosity=0, use_color=True)
                             mock_output.return_value = mock_output_instance
                             mock_config.return_value.ensure_directories = Mock()
@@ -49,7 +49,7 @@ class TestCLIArgumentParsing:
         with patch("sys.argv", ["agent-manager", "--no-color", "config", "where"]):
             with patch("agent_manager.agent_manager.Config") as mock_config:
                 with patch("agent_manager.agent_manager.ConfigCommands.process_cli_command"):
-                    with patch("agent_manager.output.get_output") as mock_output:
+                    with patch("agent_manager.agent_manager.get_output") as mock_output:
                         with patch("sys.stdout.isatty", return_value=True):
                             mock_output_instance = Mock(verbosity=0, use_color=True)
                             mock_output.return_value = mock_output_instance
@@ -64,7 +64,7 @@ class TestCLIArgumentParsing:
         with patch("sys.argv", ["agent-manager", "config", "where"]):
             with patch("agent_manager.agent_manager.Config") as mock_config:
                 with patch("agent_manager.agent_manager.ConfigCommands.process_cli_command"):
-                    with patch("agent_manager.output.get_output") as mock_output:
+                    with patch("agent_manager.agent_manager.get_output") as mock_output:
                         with patch("sys.stdout.isatty", return_value=True):
                             mock_output_instance = Mock(verbosity=0, use_color=False)
                             mock_output.return_value = mock_output_instance
@@ -79,7 +79,7 @@ class TestCLIArgumentParsing:
         with patch("sys.argv", ["agent-manager", "config", "where"]):
             with patch("agent_manager.agent_manager.Config") as mock_config:
                 with patch("agent_manager.agent_manager.ConfigCommands.process_cli_command"):
-                    with patch("agent_manager.output.get_output") as mock_output:
+                    with patch("agent_manager.agent_manager.get_output") as mock_output:
                         with patch("sys.stdout.isatty", return_value=False):
                             mock_output_instance = Mock(verbosity=0, use_color=True)
                             mock_output.return_value = mock_output_instance
@@ -317,15 +317,15 @@ class TestNoCommand:
 class TestRunCommand:
     """Test run command execution."""
 
-    def test_run_command_explicit(self):
-        """Test explicit 'run' command."""
+    def test_run_command_routes_correctly(self):
+        """Test explicit 'run' command routes to AgentCommands."""
         mock_config_data = {"hierarchy": []}
 
         with patch("sys.argv", ["agent-manager", "run"]):
             with patch("agent_manager.agent_manager.Config") as mock_config:
                 with patch("agent_manager.agent_manager.update_repositories"):
                     with patch("agent_manager.agent_manager.AgentCommands.process_cli_command") as mock_agent:
-                        with patch("agent_manager.output.get_output"):
+                        with patch("agent_manager.agent_manager.get_output"):
                             mock_config.return_value.read.return_value = mock_config_data
 
                             main()
@@ -341,18 +341,17 @@ class TestRunCommand:
 
         with patch("sys.argv", ["agent-manager", "run"]), patch("agent_manager.agent_manager.Config") as mock_config:
             with patch("agent_manager.agent_manager.update_repositories"):
-                with patch("agent_manager.agent_manager.AgentCommands.discover_plugins", return_value={}):
-                    with patch("agent_manager.agent_manager.AgentCommands.process_cli_command") as mock_agent:
-                        with patch("agent_manager.output.get_output"):
-                            mock_config_instance = Mock()
-                            mock_config.return_value = mock_config_instance
-                            mock_config_instance.read.return_value = mock_config_data
-                            # Mock initialize to avoid interactive prompts
-                            mock_config_instance.initialize = Mock()
+                with patch("agent_manager.agent_manager.AgentCommands.process_cli_command") as mock_agent:
+                    with patch("agent_manager.agent_manager.get_output"):
+                        mock_config_instance = Mock()
+                        mock_config.return_value = mock_config_instance
+                        mock_config_instance.read.return_value = mock_config_data
+                        # Mock initialize to avoid interactive prompts
+                        mock_config_instance.initialize = Mock()
 
-                            main()
+                        main()
 
-                            mock_agent.assert_called_once()
+                        mock_agent.assert_called_once()
 
     def test_run_command_with_agent_flag(self):
         """Test run command with specific agent selection."""
@@ -362,14 +361,13 @@ class TestRunCommand:
             with patch("agent_manager.agent_manager.Config") as mock_config:
                 with patch("agent_manager.agent_manager.update_repositories"):
                     with patch("agent_manager.agent_manager.AgentCommands.process_cli_command") as mock_agent:
-                        with patch("agent_manager.agent_manager.AgentCommands.discover_plugins", return_value={}):
-                            with patch("agent_manager.output.get_output"):
-                                mock_config.return_value.read.return_value = mock_config_data
+                        with patch("agent_manager.agent_manager.get_output"):
+                            mock_config.return_value.read.return_value = mock_config_data
 
-                                main()
+                            main()
 
-                                args = mock_agent.call_args[0][0]
-                                assert args.agent == "all"
+                            args = mock_agent.call_args[0][0]
+                            assert args.agent == "all"
 
     def test_run_updates_repos_before_running_agents(self):
         """Test that repositories are updated before running agents."""
@@ -456,14 +454,13 @@ class TestErrorHandling:
         with patch("sys.argv", ["agent-manager", "unknown-command"]):
             with patch("agent_manager.agent_manager.Config") as mock_config:
                 with patch("agent_manager.agent_manager.update_repositories"):
-                    with patch("agent_manager.agent_manager.AgentCommands.discover_plugins", return_value={}):
-                        with patch("agent_manager.output.get_output"):
-                            mock_config.return_value.read.return_value = {"hierarchy": []}
+                    with patch("agent_manager.agent_manager.get_output"):
+                        mock_config.return_value.read.return_value = {"hierarchy": []}
 
-                            with pytest.raises(SystemExit) as exc_info:
-                                main()
+                        with pytest.raises(SystemExit) as exc_info:
+                            main()
 
-                            assert exc_info.value.code == 2  # argparse returns 2 for invalid arguments
+                        assert exc_info.value.code == 2  # argparse returns 2 for invalid arguments
 
     def test_config_read_failure_propagates(self):
         """Test that config read failures propagate correctly."""
@@ -506,37 +503,36 @@ class TestIntegration:
             with patch("agent_manager.agent_manager.Config") as mock_config:
                 with patch("agent_manager.agent_manager.update_repositories") as mock_update:
                     with patch("agent_manager.agent_manager.AgentCommands.process_cli_command") as mock_agent:
-                        with patch("agent_manager.agent_manager.AgentCommands.discover_plugins", return_value={}):
-                            with patch("agent_manager.output.get_output") as mock_output:
-                                mock_output_instance = Mock(verbosity=0, use_color=True)
-                                mock_output.return_value = mock_output_instance
+                        with patch("agent_manager.agent_manager.get_output") as mock_output:
+                            mock_output_instance = Mock(verbosity=0, use_color=True)
+                            mock_output.return_value = mock_output_instance
 
-                                mock_config_instance = Mock()
-                                mock_config.return_value = mock_config_instance
-                                mock_config_instance.read.return_value = mock_config_data
+                            mock_config_instance = Mock()
+                            mock_config.return_value = mock_config_instance
+                            mock_config_instance.read.return_value = mock_config_data
 
-                                main()
+                            main()
 
-                                # Verify full workflow
-                                assert mock_output_instance.verbosity == 2
-                                mock_config_instance.ensure_directories.assert_called_once()
-                                mock_config_instance.initialize.assert_called_once_with(skip_if_already_created=True)
-                                mock_config_instance.read.assert_called_once()
-                                mock_update.assert_called_once_with(mock_config_data, force=False)
-                                mock_agent.assert_called_once()
+                            # Verify full workflow
+                            assert mock_output_instance.verbosity == 2
+                            mock_config_instance.ensure_directories.assert_called_once()
+                            mock_config_instance.initialize.assert_called_once_with(skip_if_already_created=True)
+                            mock_config_instance.read.assert_called_once()
+                            mock_update.assert_called_once_with(mock_config_data, force=False)
+                            mock_agent.assert_called_once()
 
-                            # Verify agent command args
-                            args, config_data = mock_agent.call_args[0]
-                            assert args.command == "run"
-                            assert args.agent == "all"
-                            assert config_data == mock_config_data
+                        # Verify agent command args
+                        args, config_data = mock_agent.call_args[0]
+                        assert args.command == "run"
+                        assert args.agent == "all"
+                        assert config_data == mock_config_data
 
     def test_config_command_workflow(self):
         """Test complete config management workflow."""
         with patch("sys.argv", ["agent-manager", "-v", "config", "add", "team", "https://github.com/test/team"]):
             with patch("agent_manager.agent_manager.Config") as mock_config:
                 with patch("agent_manager.agent_manager.ConfigCommands.process_cli_command") as mock_process:
-                    with patch("agent_manager.output.get_output") as mock_output:
+                    with patch("agent_manager.agent_manager.get_output") as mock_output:
                         mock_output_instance = Mock(verbosity=0, use_color=True)
                         mock_output.return_value = mock_output_instance
 
