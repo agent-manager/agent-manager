@@ -9,7 +9,6 @@ import yaml
 
 from agent_manager.output import MessageType, VerbosityLevel, message
 
-
 # =============================================================================
 # Plugin Enable/Disable Utilities
 # =============================================================================
@@ -117,7 +116,9 @@ def set_plugin_enabled(
             # Add to disabled list
             if plugin_name not in disabled_list:
                 disabled_list.append(plugin_name)
-                message(f"Disabled {plugin_type[:-1]} plugin: {plugin_name}", MessageType.SUCCESS, VerbosityLevel.ALWAYS)
+                message(
+                    f"Disabled {plugin_type[:-1]} plugin: {plugin_name}", MessageType.SUCCESS, VerbosityLevel.ALWAYS
+                )
             else:
                 message(f"Plugin '{plugin_name}' is already disabled", MessageType.INFO, VerbosityLevel.ALWAYS)
 
@@ -305,14 +306,15 @@ def _discover_by_entry_points(
                 loaded_class = ep.load()
 
                 # Validate against base class if provided
-                if base_class is not None:
-                    if not (isinstance(loaded_class, type) and issubclass(loaded_class, base_class)):
-                        message(
-                            f"Entry point '{ep.name}' does not point to a valid {plugin_type} class",
-                            MessageType.WARNING,
-                            VerbosityLevel.VERBOSE,
-                        )
-                        continue
+                if base_class is not None and not (
+                    isinstance(loaded_class, type) and issubclass(loaded_class, base_class)
+                ):
+                    message(
+                        f"Entry point '{ep.name}' does not point to a valid {plugin_type} class",
+                        MessageType.WARNING,
+                        VerbosityLevel.VERBOSE,
+                    )
+                    continue
 
                 plugins[ep.name] = {
                     "package_name": ep.value.split(":")[0] if ":" in ep.value else ep.value,
@@ -363,4 +365,3 @@ def load_plugin_class(plugin_info: dict, class_name: str = "Agent"):
     # Otherwise, import the module and get the class
     module = importlib.import_module(plugin_info["package_name"])
     return getattr(module, class_name)
-

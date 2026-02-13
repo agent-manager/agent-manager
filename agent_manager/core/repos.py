@@ -53,7 +53,9 @@ def discover_repo_types(include_disabled: bool = False):
                 if issubclass(obj, AbstractRepo) and obj is not AbstractRepo and obj.__module__ == module.__name__:
                     # Check if this repo type is disabled
                     if hasattr(obj, "REPO_TYPE") and obj.REPO_TYPE in disabled_repos:
-                        message(f"Skipping disabled repo type: {obj.REPO_TYPE}", MessageType.DEBUG, VerbosityLevel.DEBUG)
+                        message(
+                            f"Skipping disabled repo type: {obj.REPO_TYPE}", MessageType.DEBUG, VerbosityLevel.DEBUG
+                        )
                         continue
                     repo_types.append(obj)
 

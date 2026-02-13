@@ -88,9 +88,8 @@ class TestLoadAgent:
         """Test that SystemExit is raised when agent not found."""
         mock_discover.return_value = {"claude": {"package_name": "am_agent_claude"}}
 
-        with patch("agent_manager.core.agents.message"):
-            with pytest.raises(SystemExit):
-                load_agent("nonexistent")
+        with patch("agent_manager.core.agents.message"), pytest.raises(SystemExit):
+            load_agent("nonexistent")
 
     @patch("agent_manager.core.agents.load_plugin_class")
     @patch("agent_manager.core.agents.discover_agent_plugins")
@@ -99,9 +98,8 @@ class TestLoadAgent:
         mock_discover.return_value = {"claude": {"package_name": "am_agent_claude"}}
         mock_load_class.side_effect = Exception("Load failed")
 
-        with patch("agent_manager.core.agents.message"):
-            with pytest.raises(SystemExit):
-                load_agent("claude")
+        with patch("agent_manager.core.agents.message"), pytest.raises(SystemExit):
+            load_agent("claude")
 
     @patch("agent_manager.core.agents.load_plugin_class")
     def test_uses_provided_plugins_dict(self, mock_load_class):
@@ -167,9 +165,8 @@ class TestRunAgents:
         """Test that SystemExit is raised when no agents found."""
         mock_discover.return_value = {}
 
-        with patch("agent_manager.core.agents.message"):
-            with pytest.raises(SystemExit):
-                run_agents(["all"], {})
+        with patch("agent_manager.core.agents.message"), pytest.raises(SystemExit):
+            run_agents(["all"], {})
 
     @patch("agent_manager.core.agents.load_agent")
     @patch("agent_manager.core.agents.discover_agent_plugins")
@@ -181,9 +178,8 @@ class TestRunAgents:
         mock_agent_instance.update.side_effect = Exception("Update failed")
         mock_load_agent.return_value = mock_agent_instance
 
-        with patch("agent_manager.core.agents.message"):
-            with pytest.raises(SystemExit):
-                run_agents(["claude"], {})
+        with patch("agent_manager.core.agents.message"), pytest.raises(SystemExit):
+            run_agents(["claude"], {})
 
 
 class TestAgentPluginPrefix:
@@ -192,4 +188,3 @@ class TestAgentPluginPrefix:
     def test_prefix_is_am_agent(self):
         """Test that the plugin prefix is 'am_agent_'."""
         assert AGENT_PLUGIN_PREFIX == "am_agent_"
-

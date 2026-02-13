@@ -1,7 +1,5 @@
 """Tests for output/output.py - Output and logging utilities."""
 
-import sys
-
 from agent_manager.output import Color, MessageType, OutputManager, VerbosityLevel, message
 
 

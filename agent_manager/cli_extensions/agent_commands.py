@@ -26,18 +26,34 @@ class AgentCommands:
         agents_subparsers = agents_parser.add_subparsers(dest="agents_command", help="Agent commands")
 
         # agents list
-        agents_subparsers.add_parser("list", help="List available agent plugins")
+        agents_subparsers.add_parser(
+            "list",
+            help="List available agent plugins",
+            description="Show all discovered agent plugins, including their package names and enabled/disabled status.",
+        )
 
         # agents enable
-        enable_parser = agents_subparsers.add_parser("enable", help="Enable an agent plugin")
+        enable_parser = agents_subparsers.add_parser(
+            "enable",
+            help="Enable an agent plugin",
+            description="Re-enable a previously disabled agent plugin so it will be included when running 'agent-manager run'.",
+        )
         enable_parser.add_argument("name", help="Agent name (e.g., claude)")
 
         # agents disable
-        disable_parser = agents_subparsers.add_parser("disable", help="Disable an agent plugin")
+        disable_parser = agents_subparsers.add_parser(
+            "disable",
+            help="Disable an agent plugin",
+            description="Disable an agent plugin so it will be skipped when running 'agent-manager run'. The plugin remains installed but inactive.",
+        )
         disable_parser.add_argument("name", help="Agent name (e.g., claude)")
 
         # Run command (default action)
-        run_parser = subparsers.add_parser("run", help="Run an agent (default command)")
+        run_parser = subparsers.add_parser(
+            "run",
+            help="Run an agent (default command)",
+            description="Merge configurations from the hierarchy and apply them to the specified agent(s). This updates repositories, merges files using type-aware strategies, and writes the result to each agent's configuration directory.",
+        )
         run_parser.add_argument(
             "--agent",
             type=str,
@@ -60,9 +76,13 @@ class AgentCommands:
             args: Parsed command-line arguments
         """
         if not hasattr(args, "agents_command") or args.agents_command is None:
-            message("No agents subcommand specified", MessageType.ERROR, VerbosityLevel.ALWAYS)
-            message("Available commands: list, enable, disable", MessageType.NORMAL, VerbosityLevel.ALWAYS)
-            sys.exit(1)
+            message("Usage: agent-manager agents <command>", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("Available commands:", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  list      List available agent plugins", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  enable    Enable an agent plugin", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  disable   Disable an agent plugin", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            return
 
         if args.agents_command == "list":
             cls.list_agents()
@@ -88,7 +108,9 @@ class AgentCommands:
                 MessageType.NORMAL,
                 VerbosityLevel.ALWAYS,
             )
-            message("Agent plugins have package names starting with 'am_agent_'", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message(
+                "Agent plugins have package names starting with 'am_agent_'", MessageType.NORMAL, VerbosityLevel.ALWAYS
+            )
             message("", MessageType.NORMAL, VerbosityLevel.ALWAYS)
             return
 
@@ -108,7 +130,6 @@ class AgentCommands:
             message("Use 'agent-manager agents enable <name>' to re-enable", MessageType.NORMAL, VerbosityLevel.ALWAYS)
             message("", MessageType.NORMAL, VerbosityLevel.ALWAYS)
 
-        total = len(plugins) + len(disabled)
         message(f"Total: {len(plugins)} enabled, {len(disabled)} disabled", MessageType.NORMAL, VerbosityLevel.ALWAYS)
         message("", MessageType.NORMAL, VerbosityLevel.ALWAYS)
 

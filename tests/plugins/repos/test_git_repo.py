@@ -1,7 +1,6 @@
 """Tests for plugins/repos/git_repo.py - Git repository implementation."""
 
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import git
 import pytest
@@ -179,9 +178,8 @@ class TestGitRepoNeedsUpdate:
         # Mock git.Repo to raise InvalidGitRepositoryError
         mock_repo_class.side_effect = git.exc.InvalidGitRepositoryError
 
-        with patch("agent_manager.plugins.repos.git_repo.message"):
-            with pytest.raises(SystemExit):
-                repo.needs_update()
+        with patch("agent_manager.plugins.repos.git_repo.message"), pytest.raises(SystemExit):
+            repo.needs_update()
 
 
 class TestGitRepoUpdate:
@@ -207,9 +205,8 @@ class TestGitRepoUpdate:
 
         mock_repo_class.clone_from.side_effect = git.exc.GitCommandError("clone", 128)
 
-        with patch("agent_manager.plugins.repos.git_repo.message"):
-            with pytest.raises(SystemExit):
-                repo.update()
+        with patch("agent_manager.plugins.repos.git_repo.message"), pytest.raises(SystemExit):
+            repo.update()
 
     @patch("agent_manager.plugins.repos.git_repo.git.Repo")
     def test_update_pulls_when_exists(self, mock_repo_class, tmp_path):
@@ -261,9 +258,8 @@ class TestGitRepoUpdate:
         mock_repo_instance.remotes.origin.pull.side_effect = git.exc.GitCommandError("pull", 1)
         mock_repo_class.return_value = mock_repo_instance
 
-        with patch("agent_manager.plugins.repos.git_repo.message"):
-            with pytest.raises(SystemExit):
-                repo.update()
+        with patch("agent_manager.plugins.repos.git_repo.message"), pytest.raises(SystemExit):
+            repo.update()
 
     @patch("agent_manager.plugins.repos.git_repo.git.Repo")
     def test_update_exits_on_invalid_repo(self, mock_repo_class, tmp_path):
@@ -274,9 +270,8 @@ class TestGitRepoUpdate:
         # Mock git.Repo to raise InvalidGitRepositoryError
         mock_repo_class.side_effect = git.exc.InvalidGitRepositoryError
 
-        with patch("agent_manager.plugins.repos.git_repo.message"):
-            with pytest.raises(SystemExit):
-                repo.update()
+        with patch("agent_manager.plugins.repos.git_repo.message"), pytest.raises(SystemExit):
+            repo.update()
 
 
 class TestGitRepoIntegration:
@@ -365,6 +360,5 @@ class TestGitRepoEdgeCases:
 
         mock_repo_class.clone_from.side_effect = Exception("Unexpected error")
 
-        with patch("agent_manager.plugins.repos.git_repo.message"):
-            with pytest.raises(SystemExit):
-                repo.update()
+        with patch("agent_manager.plugins.repos.git_repo.message"), pytest.raises(SystemExit):
+            repo.update()

@@ -1,7 +1,7 @@
 """Tests for plugins/agents/agent.py - Abstract agent base class."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -661,14 +661,16 @@ class TestAbstractAgentExceptionHandling:
         agent.agent_directory.mkdir()
 
         # Make the merger raise an exception
-        with patch("agent_manager.plugins.agents.agent.message"):
-            with patch.object(agent.merger_registry, "get_merger") as mock_get_merger:
-                mock_merger = Mock()
-                mock_merger.merge.side_effect = ValueError("Test error")
-                mock_get_merger.return_value = mock_merger
+        with (
+            patch("agent_manager.plugins.agents.agent.message"),
+            patch.object(agent.merger_registry, "get_merger") as mock_get_merger,
+        ):
+            mock_merger = Mock()
+            mock_merger.merge.side_effect = ValueError("Test error")
+            mock_get_merger.return_value = mock_merger
 
-                # Should not raise, just log warning
-                agent.merge_configurations(config)
+            # Should not raise, just log warning
+            agent.merge_configurations(config)
 
 
 class TestAbstractAgentEdgeCases:

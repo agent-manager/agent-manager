@@ -103,7 +103,7 @@ class TestMergerPreferenceSchema:
         """Test that preference schemas follow expected structure."""
         prefs = TestMerger.merge_preferences()
 
-        for pref_name, pref_schema in prefs.items():
+        for _pref_name, pref_schema in prefs.items():
             # Each preference should have type
             assert "type" in pref_schema
             assert pref_schema["type"] in ["int", "str", "bool", "float"]
