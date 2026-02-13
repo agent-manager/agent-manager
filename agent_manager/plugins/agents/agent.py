@@ -306,9 +306,7 @@ class AbstractAgent(ABC):
             Combined list of filenames to discover at repository root
         """
         if not hasattr(self, "_cached_root_level_files"):
-            self._cached_root_level_files = (
-                self.BASE_ROOT_LEVEL_FILES + self.get_additional_root_level_files()
-            )
+            self._cached_root_level_files = self.BASE_ROOT_LEVEL_FILES + self.get_additional_root_level_files()
         return self._cached_root_level_files
 
     def get_repo_directory_name(self, scope: str | None = None) -> str:
