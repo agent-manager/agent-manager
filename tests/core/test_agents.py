@@ -192,4 +192,3 @@ class TestAgentPluginPrefix:
     def test_prefix_is_am_agent(self):
         """Test that the plugin prefix is 'am_agent_'."""
         assert AGENT_PLUGIN_PREFIX == "am_agent_"
-

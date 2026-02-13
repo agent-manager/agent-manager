@@ -379,7 +379,11 @@ class Config:
         # Prompt for hierarchy with retry loop
         hierarchy_list = None
         while hierarchy_list is None:
-            message("Enter your hierarchy levels, from LOWEST to HIGHEST priority.", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message(
+                "Enter your hierarchy levels, from LOWEST to HIGHEST priority.",
+                MessageType.NORMAL,
+                VerbosityLevel.ALWAYS,
+            )
             message("(first = base, last = overrides all)", MessageType.NORMAL, VerbosityLevel.ALWAYS)
             example = "(e.g., organization, team, personal): "
             hierarchy_input = input(example).strip()
@@ -405,7 +409,11 @@ class Config:
 
             # Validate we got at least one level
             if not hierarchy_list:
-                message("Hierarchy must have at least one level. Please try again.\n", MessageType.ERROR, VerbosityLevel.ALWAYS)
+                message(
+                    "Hierarchy must have at least one level. Please try again.\n",
+                    MessageType.ERROR,
+                    VerbosityLevel.ALWAYS,
+                )
                 hierarchy_list = None
                 continue
 

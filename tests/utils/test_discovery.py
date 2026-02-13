@@ -93,6 +93,7 @@ class TestDiscoverByEntryPoints:
     @patch("agent_manager.utils.discovery.importlib.metadata.entry_points")
     def test_discovers_via_entry_points(self, mock_entry_points):
         """Test discovery via entry points."""
+
         # Create a real class hierarchy for issubclass check
         class BaseClass:
             pass
@@ -261,7 +262,7 @@ class TestGetDisabledPlugins:
                         "mergers": ["smart_markdown"],
                         "agents": ["claude"],
                     }
-                }
+                },
             }
             with open(config_file, "w") as f:
                 yaml.dump(config, f)
@@ -410,4 +411,3 @@ class TestFilterDisabledPlugins:
             result = filter_disabled_plugins(plugins, "mergers", config_file)
 
             assert len(result) == 2
-

@@ -473,7 +473,11 @@ class AbstractAgent(ABC):
 
         # Write merged files with POST-MERGE HOOKS
         if merged_files:
-            message(f"\nWriting {len(merged_files)} merged file(s) to {output_dir}...", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message(
+                f"\nWriting {len(merged_files)} merged file(s) to {output_dir}...",
+                MessageType.NORMAL,
+                VerbosityLevel.ALWAYS,
+            )
 
             for file_path_str, (content, sources) in merged_files.items():
                 # POST-MERGE HOOK: Allow plugin-specific postprocessing

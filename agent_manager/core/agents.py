@@ -138,4 +138,3 @@ def run_agents(agent_names: list[str], config_data: dict, scope: str = "default"
         except Exception as e:
             message(f"Failed to initialize agent '{agent_name}': {e}", MessageType.ERROR, VerbosityLevel.ALWAYS)
             sys.exit(1)
-

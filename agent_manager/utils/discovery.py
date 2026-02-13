@@ -117,7 +117,9 @@ def set_plugin_enabled(
             # Add to disabled list
             if plugin_name not in disabled_list:
                 disabled_list.append(plugin_name)
-                message(f"Disabled {plugin_type[:-1]} plugin: {plugin_name}", MessageType.SUCCESS, VerbosityLevel.ALWAYS)
+                message(
+                    f"Disabled {plugin_type[:-1]} plugin: {plugin_name}", MessageType.SUCCESS, VerbosityLevel.ALWAYS
+                )
             else:
                 message(f"Plugin '{plugin_name}' is already disabled", MessageType.INFO, VerbosityLevel.ALWAYS)
 
@@ -363,4 +365,3 @@ def load_plugin_class(plugin_info: dict, class_name: str = "Agent"):
     # Otherwise, import the module and get the class
     module = importlib.import_module(plugin_info["package_name"])
     return getattr(module, class_name)
-
