@@ -135,7 +135,7 @@ class TestAbstractAgentRootLevelFiles:
 
     def test_base_root_level_files_exists(self):
         """Test that BASE_ROOT_LEVEL_FILES class attribute exists."""
-        assert hasattr(AbstractAgent, 'BASE_ROOT_LEVEL_FILES')
+        assert hasattr(AbstractAgent, "BASE_ROOT_LEVEL_FILES")
         assert isinstance(AbstractAgent.BASE_ROOT_LEVEL_FILES, list)
 
     def test_base_root_level_files_contains_agents_md(self):
