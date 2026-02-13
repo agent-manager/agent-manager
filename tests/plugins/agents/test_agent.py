@@ -421,7 +421,10 @@ class TestAbstractAgentRootLevelDiscovery:
         root_index = files.index(root_agents[0])
         subdir_index = files.index(subdir_agents[0])
 
-        assert root_index < subdir_index, "Root-level AGENTS.md should come before subdirectory AGENTS.md"
+        assert root_index < subdir_index, (
+            f"Root-level AGENTS.md should come before subdirectory AGENTS.md "
+            f"(root at index {root_index}, subdirectory at index {subdir_index})"
+        )
 
     def test_discover_missing_root_level_files_gracefully(self, tmp_path):
         """Test that missing root-level files don't cause errors."""

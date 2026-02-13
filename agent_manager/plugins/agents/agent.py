@@ -300,12 +300,16 @@ class AbstractAgent(ABC):
         """Get complete list of root-level files to discover.
 
         Combines BASE_ROOT_LEVEL_FILES with agent-specific files from
-        get_additional_root_level_files().
+        get_additional_root_level_files(). Result is cached per agent instance.
 
         Returns:
             Combined list of filenames to discover at repository root
         """
-        return self.BASE_ROOT_LEVEL_FILES + self.get_additional_root_level_files()
+        if not hasattr(self, "_cached_root_level_files"):
+            self._cached_root_level_files = (
+                self.BASE_ROOT_LEVEL_FILES + self.get_additional_root_level_files()
+            )
+        return self._cached_root_level_files
 
     def get_repo_directory_name(self, scope: str | None = None) -> str:
         """Get the directory name to look for in repositories.
@@ -332,8 +336,9 @@ class AbstractAgent(ABC):
            and get_additional_root_level_files())
         2. Agent subdirectory: <repo_path>/<agent_directory_name>/ (e.g., repo/.claude/)
 
-        Root-level files are discovered first to ensure they merge before agent subdirectory
-        files when both exist for the same filename.
+        Root-level files are discovered first, ensuring they merge BEFORE agent subdirectory
+        files when both exist with the same filename. This allows subdirectory files to
+        override/extend root-level files.
 
         Args:
             repo_path: Path to the repository
@@ -370,7 +375,12 @@ class AbstractAgent(ABC):
                 if not should_exclude:
                     found_files.append(item)
 
-        return sorted(found_files, key=lambda p: (p.parent != repo_path, p.name))
+        def sort_key(path: Path) -> tuple:
+            """Sort root-level files before subdirectory files, then by name."""
+            is_subdirectory = path.parent != repo_path
+            return (is_subdirectory, path.name)
+
+        return sorted(found_files, key=sort_key)
 
     def get_agent_directory(self, scope: str | None = None) -> Path:
         """Get the agent's configuration directory.
