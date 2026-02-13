@@ -23,20 +23,18 @@ class RepoCommands:
         repos_subparsers = repos_parser.add_subparsers(dest="repos_command", help="Repository commands")
 
         # repos list
-        repos_subparsers.add_parser("list", help="List available repository types")
+        repos_subparsers.add_parser("list", help="List available repository plugins")
 
         # repos enable
-        enable_parser = repos_subparsers.add_parser("enable", help="Enable a repository type plugin")
-        enable_parser.add_argument("name", help="Repository type name (e.g., git)")
+        enable_parser = repos_subparsers.add_parser("enable", help="Enable a repository plugin")
+        enable_parser.add_argument("name", help="Repository name (e.g., git)")
 
         # repos disable
-        disable_parser = repos_subparsers.add_parser("disable", help="Disable a repository type plugin")
-        disable_parser.add_argument("name", help="Repository type name (e.g., git)")
+        disable_parser = repos_subparsers.add_parser("disable", help="Disable a repository plugin")
+        disable_parser.add_argument("name", help="Repository name (e.g., git)")
 
         # Update command (keep as separate command for backwards compatibility)
-        update_parser = subparsers.add_parser(
-            "update", help="Update all repositories in the hierarchy (does not update agent configs)"
-        )
+        update_parser = subparsers.add_parser("update", help="Update all repositories in the hierarchy")
         update_parser.add_argument(
             "--force", action="store_true", help="Force update even if repository appears up to date"
         )
@@ -49,9 +47,13 @@ class RepoCommands:
             args: Parsed command-line arguments
         """
         if not hasattr(args, "repos_command") or args.repos_command is None:
-            message("No repos subcommand specified", MessageType.ERROR, VerbosityLevel.ALWAYS)
-            message("Available commands: list, enable, disable", MessageType.NORMAL, VerbosityLevel.ALWAYS)
-            sys.exit(1)
+            message("Usage: agent-manager repos <command>", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("Available commands:", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  list      List available repository plugins", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  enable    Enable a repository plugin", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  disable   Disable a repository plugin", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            return
 
         if args.repos_command == "list":
             RepoCommands.list_repos()

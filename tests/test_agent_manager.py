@@ -204,7 +204,7 @@ class TestMergersCommand:
 
                             args = mock_process.call_args[0][0]
                             assert args.mergers_command == "show"
-                            assert args.merger == "JsonMerger"
+                            assert args.name == "JsonMerger"
 
     def test_mergers_command_early_return(self):
         """Test that mergers command returns early without repo operations."""

@@ -60,9 +60,13 @@ class AgentCommands:
             args: Parsed command-line arguments
         """
         if not hasattr(args, "agents_command") or args.agents_command is None:
-            message("No agents subcommand specified", MessageType.ERROR, VerbosityLevel.ALWAYS)
-            message("Available commands: list, enable, disable", MessageType.NORMAL, VerbosityLevel.ALWAYS)
-            sys.exit(1)
+            message("Usage: agent-manager agents <command>", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("Available commands:", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  list      List available agent plugins", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  enable    Enable an agent plugin", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  disable   Disable an agent plugin", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            return
 
         if args.agents_command == "list":
             cls.list_agents()

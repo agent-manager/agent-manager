@@ -63,7 +63,7 @@ class TestMergerCommandsCLI:
         args = parser.parse_args(["mergers", "show", "JsonMerger"])
         assert args.command == "mergers"
         assert args.mergers_command == "show"
-        assert args.merger == "JsonMerger"
+        assert args.name == "JsonMerger"
 
     def test_add_cli_arguments_configure(self):
         """Test 'mergers configure' CLI arguments."""
@@ -204,7 +204,7 @@ class TestMergerCommandsProcessCommand:
 
     def test_process_cli_command_show(self, merger_manager, mock_config):
         """Test processing 'mergers show' command."""
-        args = argparse.Namespace(mergers_command="show", merger="JsonMerger")
+        args = argparse.Namespace(mergers_command="show", name="JsonMerger")
 
         with patch.object(merger_manager, "show_merger") as mock_show:
             merger_manager.process_cli_command(args, mock_config)
@@ -218,15 +218,21 @@ class TestMergerCommandsProcessCommand:
             merger_manager.process_cli_command(args, mock_config)
             mock_configure.assert_called_once_with(mock_config, None)
 
-    def test_process_cli_command_no_subcommand(self, merger_manager, mock_config):
-        """Test processing with no subcommand specified."""
+    def test_process_cli_command_no_subcommand_shows_usage(self, merger_manager, mock_config):
+        """Test that no subcommand shows friendly usage message."""
         args = argparse.Namespace()  # No mergers_command
 
-        with patch("agent_manager.cli_extensions.merger_commands.message") as mock_message:
-            with pytest.raises(SystemExit):
-                merger_manager.process_cli_command(args, mock_config)
+        messages = []
 
-            assert mock_message.called
+        def capture_message(text, *args_inner, **kwargs):
+            messages.append(text)
+
+        with patch("agent_manager.cli_extensions.merger_commands.message", side_effect=capture_message):
+            merger_manager.process_cli_command(args, mock_config)
+
+        output = "\n".join(messages)
+        assert "Usage: agent-manager mergers <command>" in output
+        assert "Available commands:" in output
 
 
 class TestMergerCommandsConfigureCommand:

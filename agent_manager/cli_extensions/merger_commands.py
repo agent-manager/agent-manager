@@ -32,11 +32,11 @@ class MergerCommands:
         mergers_subparsers = mergers_parser.add_subparsers(dest="mergers_command", help="Merger commands")
 
         # mergers list
-        mergers_subparsers.add_parser("list", help="List registered mergers")
+        mergers_subparsers.add_parser("list", help="List available merger plugins")
 
         # mergers show
         show_parser = mergers_subparsers.add_parser("show", help="Show preferences for a specific merger")
-        show_parser.add_argument("merger", help="Merger class name (e.g., JsonMerger)")
+        show_parser.add_argument("name", help="Merger class name (e.g., JsonMerger)")
 
         # mergers configure
         configure_parser = mergers_subparsers.add_parser("configure", help="Interactively configure merger preferences")
@@ -58,14 +58,20 @@ class MergerCommands:
             config: Configuration manager instance
         """
         if not hasattr(args, "mergers_command") or args.mergers_command is None:
-            message("No mergers subcommand specified", MessageType.ERROR, VerbosityLevel.ALWAYS)
-            message("Available commands: list, show, configure, enable, disable", MessageType.NORMAL, VerbosityLevel.ALWAYS)
-            sys.exit(1)
+            message("Usage: agent-manager mergers <command>", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("Available commands:", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  list        List available merger plugins", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  show        Show preferences for a specific merger", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  configure   Interactively configure merger preferences", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  enable      Enable a merger plugin", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            message("  disable     Disable a merger plugin", MessageType.NORMAL, VerbosityLevel.ALWAYS)
+            return
 
         if args.mergers_command == "list":
             self.list_mergers()
         elif args.mergers_command == "show":
-            self.show_merger(args.merger)
+            self.show_merger(args.name)
         elif args.mergers_command == "configure":
             self.configure_mergers(config, args.merger)
         elif args.mergers_command == "enable":
