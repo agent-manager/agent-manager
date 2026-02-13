@@ -101,6 +101,9 @@ class AbstractAgent(ABC):
         "*.egg-info",
     ]
 
+    # Default root-level files to discover from repositories
+    BASE_ROOT_LEVEL_FILES = ["AGENTS.md"]
+
     def __init__(self):
         """Initialize the agent with hook registries and merger registry."""
         # Hook registries: file_pattern -> hook_function

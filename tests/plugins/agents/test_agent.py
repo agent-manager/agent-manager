@@ -130,6 +130,19 @@ class TestAbstractAgentExcludePatterns:
         assert "*.log" in agent.exclude_patterns
 
 
+class TestAbstractAgentRootLevelFiles:
+    """Test cases for root-level file discovery configuration."""
+
+    def test_base_root_level_files_exists(self):
+        """Test that BASE_ROOT_LEVEL_FILES class attribute exists."""
+        assert hasattr(AbstractAgent, 'BASE_ROOT_LEVEL_FILES')
+        assert isinstance(AbstractAgent.BASE_ROOT_LEVEL_FILES, list)
+
+    def test_base_root_level_files_contains_agents_md(self):
+        """Test that BASE_ROOT_LEVEL_FILES contains AGENTS.md."""
+        assert "AGENTS.md" in AbstractAgent.BASE_ROOT_LEVEL_FILES
+
+
 class TestAbstractAgentFileDiscovery:
     """Test cases for file discovery."""
 
