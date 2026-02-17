@@ -243,9 +243,9 @@ class TestMergerCommandsConfigureCommand:
         # Ensure config directory exists
         mock_config.ensure_directories()
 
-        # Create a config file with a valid hierarchy (no repo objects - they can't be serialized)
+        # Create a config file with valid repos (no repo objects - they can't be serialized)
         config_data = {
-            "hierarchy": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}],
+            "repos": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}],
             "mergers": {"JsonMerger": {"indent": 4, "sort_keys": True}},
         }
 
@@ -273,7 +273,7 @@ class TestMergerCommandsConfigureCommand:
         mock_config.ensure_directories()
 
         # Create a minimal config without mergers section but with valid hierarchy
-        config_data = {"hierarchy": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}]}
+        config_data = {"repos": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}]}
 
         # Write the config file directly as YAML to avoid serialization issues
         import yaml
@@ -301,7 +301,7 @@ class TestMergerCommandsConfigureCommand:
         # Ensure config directory exists
         mock_config.ensure_directories()
 
-        config_data = {"hierarchy": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}]}
+        config_data = {"repos": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}]}
 
         # Write the config file directly as YAML to avoid serialization issues
         import yaml
@@ -329,7 +329,9 @@ class TestMergerCommandsConfigureCommand:
         # Ensure config directory exists
         mock_config.ensure_directories()
 
-        config_data = {"hierarchy": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}]}
+        config_data = {
+            "repos": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}],
+        }
         mock_config.write(config_data)
 
         with patch("agent_manager.cli_extensions.merger_commands.message"), pytest.raises(SystemExit):
@@ -339,7 +341,9 @@ class TestMergerCommandsConfigureCommand:
         """Test that int values below minimum are clamped."""
         mock_config.ensure_directories()
 
-        config_data = {"hierarchy": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}]}
+        config_data = {
+            "repos": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}],
+        }
         import yaml
 
         with open(mock_config.config_file, "w") as f:
@@ -366,7 +370,7 @@ class TestMergerCommandsConfigureCommand:
         """Test that int values above maximum are clamped."""
         mock_config.ensure_directories()
 
-        config_data = {"hierarchy": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}]}
+        config_data = {"repos": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}]}
         import yaml
 
         with open(mock_config.config_file, "w") as f:
@@ -393,7 +397,7 @@ class TestMergerCommandsConfigureCommand:
         """Test that invalid int input is handled gracefully."""
         mock_config.ensure_directories()
 
-        config_data = {"hierarchy": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}]}
+        config_data = {"repos": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}]}
         import yaml
 
         with open(mock_config.config_file, "w") as f:
@@ -416,7 +420,7 @@ class TestMergerCommandsConfigureCommand:
         """Test that various 'yes' inputs are recognized as True."""
         mock_config.ensure_directories()
 
-        config_data = {"hierarchy": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}]}
+        config_data = {"repos": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}]}
         import yaml
 
         with open(mock_config.config_file, "w") as f:
@@ -445,7 +449,7 @@ class TestMergerCommandsConfigureCommand:
         """Test that non-yes inputs are recognized as False."""
         mock_config.ensure_directories()
 
-        config_data = {"hierarchy": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}]}
+        config_data = {"repos": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}]}
         import yaml
 
         with open(mock_config.config_file, "w") as f:
@@ -471,7 +475,7 @@ class TestMergerCommandsConfigureCommand:
         """Test that valid string choice is accepted."""
         mock_config.ensure_directories()
 
-        config_data = {"hierarchy": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}]}
+        config_data = {"repos": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}]}
         import yaml
 
         with open(mock_config.config_file, "w") as f:
@@ -497,7 +501,7 @@ class TestMergerCommandsConfigureCommand:
         """Test that invalid string choice shows warning."""
         mock_config.ensure_directories()
 
-        config_data = {"hierarchy": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}]}
+        config_data = {"repos": [{"name": "test", "url": "https://github.com/test/repo", "repo_type": "git"}]}
         import yaml
 
         with open(mock_config.config_file, "w") as f:

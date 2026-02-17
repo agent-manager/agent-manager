@@ -1,5 +1,6 @@
 """Git repository implementation."""
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -174,3 +175,54 @@ class GitRepo(AbstractRepo):
                 f"Unexpected error updating repository '{self.name}': {e}", MessageType.ERROR, VerbosityLevel.ALWAYS
             )
             sys.exit(1)
+
+    def safe_to_overwrite(self, file_path: Path) -> bool:
+        """Check if a file inside this git repository is safe to overwrite.
+
+        A file is safe to overwrite if it is tracked by Git and has no
+        uncommitted changes (staged or unstaged).  In that state the
+        user can always recover the previous content via ``git checkout``.
+
+        Args:
+            file_path: Absolute path to the file to check
+
+        Returns:
+            True if tracked + clean, False otherwise
+        """
+        try:
+            repo = git.Repo(self.local_path)
+        except (git.exc.InvalidGitRepositoryError, git.exc.NoSuchPathError):
+            return False
+
+        try:
+            rel = file_path.resolve().relative_to(
+                Path(repo.working_dir).resolve()
+            )
+        except ValueError:
+            return False
+
+        rel_str = str(rel)
+
+        # Check if file is tracked
+        try:
+            result = subprocess.run(
+                ["git", "ls-files", "--error-unmatch", rel_str],
+                cwd=repo.working_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode != 0:
+                return False
+        except OSError:
+            return False
+
+        # Check for uncommitted changes (staged or unstaged)
+        if repo.is_dirty(path=rel_str):
+            return False
+
+        # Also check for staged changes
+        staged = [
+            d.a_path for d in repo.index.diff("HEAD")
+        ] if repo.head.is_valid() else []
+        return rel_str not in staged

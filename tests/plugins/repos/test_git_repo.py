@@ -324,6 +324,74 @@ class TestGitRepoIntegration:
         assert "github" in repr_str
 
 
+class TestGitRepoSafeToOverwrite:
+    """Test cases for GitRepo.safe_to_overwrite()."""
+
+    @pytest.fixture
+    def git_repo_dir(self, tmp_path):
+        """Create a real git repo for testing safe_to_overwrite."""
+        repo_dir = tmp_path / "myrepo"
+        repo_dir.mkdir()
+        repo = git.Repo.init(repo_dir)
+
+        # Create and commit a file
+        tracked = repo_dir / "tracked.txt"
+        tracked.write_text("original")
+        repo.index.add(["tracked.txt"])
+        repo.index.commit("initial commit")
+
+        return repo_dir
+
+    @pytest.fixture
+    def git_repo_obj(self, git_repo_dir, tmp_path):
+        """Create a GitRepo pointing at the test repo."""
+        repos_dir = tmp_path / "repos"
+        repos_dir.mkdir()
+        obj = GitRepo("myrepo", "https://example.com/x.git", repos_dir)
+        obj.local_path = git_repo_dir
+        return obj
+
+    def test_tracked_clean_file_is_safe(self, git_repo_obj, git_repo_dir):
+        """A tracked file with no changes is safe to overwrite."""
+        assert git_repo_obj.safe_to_overwrite(git_repo_dir / "tracked.txt")
+
+    def test_untracked_file_is_not_safe(self, git_repo_obj, git_repo_dir):
+        """An untracked file is not safe to overwrite."""
+        untracked = git_repo_dir / "new.txt"
+        untracked.write_text("hello")
+        assert not git_repo_obj.safe_to_overwrite(untracked)
+
+    def test_modified_file_is_not_safe(self, git_repo_obj, git_repo_dir):
+        """A tracked file with unstaged changes is not safe."""
+        tracked = git_repo_dir / "tracked.txt"
+        tracked.write_text("changed")
+        assert not git_repo_obj.safe_to_overwrite(tracked)
+
+    def test_file_outside_repo_is_not_safe(self, git_repo_obj, tmp_path):
+        """A file not inside the repo is not safe."""
+        outside = tmp_path / "outside.txt"
+        outside.write_text("x")
+        assert not git_repo_obj.safe_to_overwrite(outside)
+
+    def test_nonexistent_file_is_not_safe(self, git_repo_obj, git_repo_dir):
+        """A file that doesn't exist is not safe."""
+        assert not git_repo_obj.safe_to_overwrite(
+            git_repo_dir / "missing.txt"
+        )
+
+    def test_invalid_repo_returns_false(self, tmp_path):
+        """If local_path is not a git repo, return False."""
+        repos_dir = tmp_path / "repos"
+        repos_dir.mkdir()
+        obj = GitRepo("bad", "https://x.com/x.git", repos_dir)
+        obj.local_path = tmp_path / "not_a_repo"
+        (tmp_path / "not_a_repo").mkdir()
+        (tmp_path / "not_a_repo" / "file.txt").write_text("x")
+        assert not obj.safe_to_overwrite(
+            tmp_path / "not_a_repo" / "file.txt"
+        )
+
+
 class TestGitRepoEdgeCases:
     """Test cases for edge cases and special scenarios."""
 

@@ -433,3 +433,14 @@ class TestLocalRepoVsGitRepo:
         assert repo.exists()
         assert not repo.needs_update()
         repo.update()  # Should not throw
+
+    def test_safe_to_overwrite_always_false(self, tmp_path):
+        """LocalRepo.safe_to_overwrite always returns False (no VCS)."""
+        test_dir = tmp_path / "test"
+        test_dir.mkdir()
+        (test_dir / "file.txt").write_text("x")
+
+        with patch("agent_manager.plugins.repos.local_repo.message"):
+            repo = LocalRepo("test", f"file://{test_dir}", tmp_path)
+
+        assert not repo.safe_to_overwrite(test_dir / "file.txt")
