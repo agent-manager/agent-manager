@@ -13,10 +13,21 @@ from .manifest import (
 from .merger_registry import MergerRegistry
 from .mergers import create_default_merger_registry, discover_merger_classes
 from .repos import create_repo, discover_repo_types, get_repo_type_map, update_repositories
+from .safety import (
+    ClobberAction,
+    TypeValidation,
+    check_clobber,
+    should_proceed_on_type_mismatch,
+    should_write_file,
+    validate_directory_type,
+)
 
 __all__ = [
+    "ClobberAction",
     "MergerRegistry",
+    "TypeValidation",
     "add_or_update_entry",
+    "check_clobber",
     "cleanup_stale_files",
     "create_default_merger_registry",
     "create_repo",
@@ -31,6 +42,9 @@ __all__ = [
     "read_manifest",
     "remove_agent_from_entry",
     "run_agents",
+    "should_proceed_on_type_mismatch",
+    "should_write_file",
     "update_repositories",
+    "validate_directory_type",
     "write_manifest",
 ]
