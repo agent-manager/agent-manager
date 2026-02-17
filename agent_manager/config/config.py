@@ -1,6 +1,8 @@
-"""Configuration management class for agent-manager."""
+"""Configuration management class for agent-manager.
 
-import ast
+V2 schema: repos + default_hierarchy + default_agents + directories
+"""
+
 import sys
 from pathlib import Path
 from typing import Any, TypedDict
@@ -12,18 +14,30 @@ from agent_manager.output import MessageType, VerbosityLevel, message
 from agent_manager.utils import is_file_url, resolve_file_path
 
 
-class HierarchyEntry(TypedDict):
-    """Type definition for a hierarchy entry."""
+class RepoEntry(TypedDict):
+    """Type definition for a repo entry."""
 
     name: str
     url: str
     repo_type: str
 
 
-class ConfigData(TypedDict):
-    """Type definition for the configuration structure."""
+class DirectoryEntry(TypedDict, total=False):
+    """Type definition for a directory entry."""
 
-    hierarchy: list[HierarchyEntry]
+    type: str
+    agents: list[str]
+    hierarchy: list[str]
+
+
+class ConfigData(TypedDict, total=False):
+    """Type definition for the V2 configuration structure."""
+
+    repos: list[RepoEntry]
+    default_hierarchy: list[str]
+    default_agents: list[str]
+    directories: dict[str, DirectoryEntry]
+    mergers: dict[str, Any]
 
 
 class ConfigError(Exception):
@@ -112,7 +126,6 @@ class Config:
             Normalized URL with absolute paths for file:// URLs
         """
         if is_file_url(url):
-            # Resolve to absolute path and convert back to file:// URL
             resolved_path = resolve_file_path(url)
             return f"file://{resolved_path}"
         return url
@@ -127,21 +140,16 @@ class Config:
         Returns:
             True if the URL is valid and accessible, False otherwise
         """
-        # Use detect_repo_types to find matching types
         matching_type_names = Config.detect_repo_types(url)
 
         if len(matching_type_names) == 0:
             message(f"No repository type can handle URL: {url}", MessageType.ERROR, VerbosityLevel.ALWAYS)
             return False
 
-        # Get the first matching repo class
-        # (if multiple types match, the user will choose during config)
         for repo_class in discover_repo_types():
             if matching_type_names[0] == repo_class.REPO_TYPE:
-                # Delegate validation to the repo class
                 return repo_class.validate_url(url)
 
-        # Should never reach here if detect_repo_types works correctly
         message("Internal error: Could not find repo class", MessageType.ERROR, VerbosityLevel.ALWAYS)
         return False
 
@@ -191,76 +199,163 @@ class Config:
                 message("Please enter a number.", MessageType.NORMAL, VerbosityLevel.ALWAYS)
 
     @staticmethod
-    def validate(config: dict[str, Any]) -> None:
-        """Validate the configuration structure.
+    def validate(config: dict[str, Any]) -> list[str]:
+        """Validate the V2 configuration structure.
 
         Collects all validation errors before raising an exception.
 
         Args:
             config: The configuration dictionary to validate
 
+        Returns:
+            List of warnings (non-fatal issues)
+
         Raises:
             ConfigError: If the configuration is invalid, with all errors
         """
-        errors = []
+        errors: list[str] = []
+        warnings: list[str] = []
 
-        # Check for hierarchy key
-        if "hierarchy" not in config:
-            errors.append("Configuration must contain 'hierarchy' key")
-            # Can't continue without hierarchy
-            raise ConfigError(errors)
+        # --- repos ---
+        if "repos" not in config:
+            errors.append("Configuration must contain 'repos' key")
+        elif not isinstance(config["repos"], list):
+            errors.append("'repos' must be a list")
+        else:
+            repo_names: set[str] = set()
+            for idx, entry in enumerate(config["repos"]):
+                if not isinstance(entry, dict):
+                    errors.append(f"Repo entry {idx} must be a dictionary")
+                    continue
 
-        # Check hierarchy is a list
-        if not isinstance(config["hierarchy"], list):
-            errors.append("'hierarchy' must be a list")
-            # Can't continue if not a list
-            raise ConfigError(errors)
+                required_keys = ["name", "url", "repo_type"]
+                missing_keys = [key for key in required_keys if key not in entry]
+                if missing_keys:
+                    errors.append(f"Repo entry {idx} is missing required keys: {', '.join(missing_keys)}")
 
-        # Check hierarchy is not empty
-        if len(config["hierarchy"]) == 0:
-            errors.append("'hierarchy' cannot be empty")
-            raise ConfigError(errors)
+                if "name" in entry:
+                    if not isinstance(entry["name"], str):
+                        errors.append(
+                            f"Repo entry {idx} 'name' must be a string, got {type(entry['name']).__name__}"
+                        )
+                    elif not entry["name"]:
+                        errors.append(f"Repo entry {idx} 'name' cannot be empty")
+                    elif entry["name"] in repo_names:
+                        errors.append(f"Repo entry {idx} has duplicate name '{entry['name']}'")
+                    else:
+                        repo_names.add(entry["name"])
 
-        # Validate each hierarchy entry
-        for idx, entry in enumerate(config["hierarchy"]):
-            # Check entry is a dictionary
-            if not isinstance(entry, dict):
-                errors.append(f"Hierarchy entry {idx} must be a dictionary")
-                # Skip further validation of this entry
-                continue
+                if "url" in entry:
+                    if not isinstance(entry["url"], str):
+                        errors.append(
+                            f"Repo entry {idx} 'url' must be a string, got {type(entry['url']).__name__}"
+                        )
+                    elif not entry["url"]:
+                        errors.append(f"Repo entry {idx} 'url' cannot be empty")
 
-            # Check for required keys
-            required_keys = ["name", "url", "repo_type"]
-            missing_keys = [key for key in required_keys if key not in entry]
-            if missing_keys:
-                errors.append(f"Hierarchy entry {idx} is missing required keys: {', '.join(missing_keys)}")
+                if "repo_type" in entry:
+                    if not isinstance(entry["repo_type"], str):
+                        errors.append(
+                            f"Repo entry {idx} 'repo_type' must be a string, "
+                            f"got {type(entry['repo_type']).__name__}"
+                        )
+                    elif not entry["repo_type"]:
+                        errors.append(f"Repo entry {idx} 'repo_type' cannot be empty")
 
-            # Validate 'name' field
-            if "name" in entry:
-                if not isinstance(entry["name"], str):
-                    errors.append(f"Hierarchy entry {idx} 'name' must be a string, got {type(entry['name']).__name__}")
-                elif not entry["name"]:
-                    errors.append(f"Hierarchy entry {idx} 'name' cannot be empty")
+            # --- default_hierarchy ---
+            if "default_hierarchy" in config:
+                if not isinstance(config["default_hierarchy"], list):
+                    errors.append("'default_hierarchy' must be a list")
+                else:
+                    for idx, name in enumerate(config["default_hierarchy"]):
+                        if not isinstance(name, str):
+                            errors.append(f"default_hierarchy entry {idx} must be a string")
+                        elif name not in repo_names:
+                            errors.append(
+                                f"default_hierarchy entry '{name}' does not match any repo name"
+                            )
 
-            # Validate 'url' field
-            if "url" in entry:
-                if not isinstance(entry["url"], str):
-                    errors.append(f"Hierarchy entry {idx} 'url' must be a string, got {type(entry['url']).__name__}")
-                elif not entry["url"]:
-                    errors.append(f"Hierarchy entry {idx} 'url' cannot be empty")
+            # --- default_agents ---
+            if "default_agents" in config:
+                if not isinstance(config["default_agents"], list):
+                    errors.append("'default_agents' must be a list")
+                else:
+                    for idx, name in enumerate(config["default_agents"]):
+                        if not isinstance(name, str):
+                            errors.append(f"default_agents entry {idx} must be a string")
+                        elif not name:
+                            errors.append(f"default_agents entry {idx} cannot be empty")
 
-            # Validate 'repo_type' field
-            if "repo_type" in entry:
-                if not isinstance(entry["repo_type"], str):
-                    errors.append(
-                        f"Hierarchy entry {idx} 'repo_type' must be a string, got {type(entry['repo_type']).__name__}"
+            # --- directories ---
+            if "directories" in config:
+                if not isinstance(config["directories"], dict):
+                    errors.append("'directories' must be a dictionary")
+                else:
+                    has_default_hierarchy = (
+                        "default_hierarchy" in config
+                        and isinstance(config.get("default_hierarchy"), list)
+                        and len(config.get("default_hierarchy", [])) > 0
                     )
-                elif not entry["repo_type"]:
-                    errors.append(f"Hierarchy entry {idx} 'repo_type' cannot be empty")
 
-        # Raise exception with all errors if any were found
+                    for dir_path, dir_config in config["directories"].items():
+                        if not isinstance(dir_path, str):
+                            errors.append(f"Directory key must be a string, got {type(dir_path).__name__}")
+                            continue
+
+                        if dir_config is None:
+                            dir_config = {}
+
+                        if not isinstance(dir_config, dict):
+                            errors.append(f"Directory '{dir_path}' config must be a dictionary")
+                            continue
+
+                        # Validate type
+                        if "type" in dir_config:
+                            if not isinstance(dir_config["type"], str):
+                                errors.append(
+                                    f"Directory '{dir_path}' 'type' must be a string"
+                                )
+                            elif not dir_config["type"]:
+                                errors.append(f"Directory '{dir_path}' 'type' cannot be empty")
+
+                        # Validate agents list
+                        if "agents" in dir_config:
+                            if not isinstance(dir_config["agents"], list):
+                                errors.append(f"Directory '{dir_path}' 'agents' must be a list")
+                            else:
+                                for idx, agent in enumerate(dir_config["agents"]):
+                                    if not isinstance(agent, str):
+                                        errors.append(
+                                            f"Directory '{dir_path}' agents entry {idx} must be a string"
+                                        )
+
+                        # Validate hierarchy list
+                        if "hierarchy" in dir_config:
+                            if not isinstance(dir_config["hierarchy"], list):
+                                errors.append(f"Directory '{dir_path}' 'hierarchy' must be a list")
+                            else:
+                                for idx, name in enumerate(dir_config["hierarchy"]):
+                                    if not isinstance(name, str):
+                                        errors.append(
+                                            f"Directory '{dir_path}' hierarchy entry {idx} must be a string"
+                                        )
+                                    elif name not in repo_names:
+                                        errors.append(
+                                            f"Directory '{dir_path}' hierarchy entry '{name}' "
+                                            f"does not match any repo name"
+                                        )
+
+                        # Warn if directory omits hierarchy and no default_hierarchy
+                        if "hierarchy" not in dir_config and not has_default_hierarchy:
+                            warnings.append(
+                                f"Directory '{dir_path}' has no 'hierarchy' and no "
+                                f"'default_hierarchy' is defined; no repos will be merged"
+                            )
+
         if errors:
             raise ConfigError(errors)
+
+        return warnings
 
     def write(self, config: ConfigData) -> None:
         """Write the configuration to the config file with validation.
@@ -272,61 +367,85 @@ class Config:
             SystemExit: If validation fails or file cannot be written
         """
         try:
-            # Validate before writing
             self.validate(config)
 
-            # Create a clean copy without repo objects (which can't be serialized)
-            clean_config = {"hierarchy": []}
-            for entry in config["hierarchy"]:
-                clean_entry = {
+            clean_config: dict[str, Any] = {}
+
+            # repos
+            clean_config["repos"] = []
+            for entry in config.get("repos", []):
+                clean_config["repos"].append({
                     "name": entry["name"],
                     "url": entry["url"],
                     "repo_type": entry["repo_type"],
-                }
-                clean_config["hierarchy"].append(clean_entry)
+                })
 
-            # Copy over any additional top-level keys (like merger settings)
+            # default_hierarchy
+            if "default_hierarchy" in config:
+                clean_config["default_hierarchy"] = list(config["default_hierarchy"])
+
+            # default_agents
+            if "default_agents" in config:
+                clean_config["default_agents"] = list(config["default_agents"])
+
+            # directories
+            if "directories" in config:
+                clean_config["directories"] = {}
+                for dir_path, dir_config in config["directories"].items():
+                    if dir_config is None:
+                        clean_config["directories"][dir_path] = None
+                    else:
+                        clean_entry: dict[str, Any] = {}
+                        if "type" in dir_config:
+                            clean_entry["type"] = dir_config["type"]
+                        if "agents" in dir_config:
+                            clean_entry["agents"] = list(dir_config["agents"])
+                        if "hierarchy" in dir_config:
+                            clean_entry["hierarchy"] = list(dir_config["hierarchy"])
+                        clean_config["directories"][dir_path] = clean_entry if clean_entry else None
+
+            # Copy additional top-level keys (like mergers)
             for key, value in config.items():
-                if key != "hierarchy":
+                if key not in ("repos", "default_hierarchy", "default_agents", "directories"):
                     clean_config[key] = value
 
-            # Write to file
             with open(self.config_file, "w") as f:
                 yaml.dump(clean_config, f, default_flow_style=False, sort_keys=False)
-            print(f"\n✓ Configuration saved to {self.config_file}")
+            message(f"Configuration saved to {self.config_file}", MessageType.SUCCESS, VerbosityLevel.ALWAYS)
         except ConfigError as e:
-            print(f"Error: Invalid configuration - {e}")
+            message(f"Invalid configuration - {e}", MessageType.ERROR, VerbosityLevel.ALWAYS)
             sys.exit(1)
         except OSError as e:
-            print(f"Error: Failed to write configuration file: {e}")
+            message(f"Failed to write configuration file: {e}", MessageType.ERROR, VerbosityLevel.ALWAYS)
             sys.exit(1)
         except Exception as e:
-            print(f"Error: Unexpected error writing configuration: {e}")
+            message(f"Unexpected error writing configuration: {e}", MessageType.ERROR, VerbosityLevel.ALWAYS)
             sys.exit(1)
 
     def read(self) -> ConfigData:
         """Load the configuration file with error handling.
 
         Returns:
-            The loaded and validated configuration dictionary
+            The loaded and validated configuration dictionary with repo objects
 
         Raises:
             SystemExit: If file cannot be read or config is invalid
         """
         try:
             with open(self.config_file) as f:
-                # Read the config file
                 config = yaml.safe_load(f)
                 if config is None:
                     message(f"Configuration file {self.config_file} is empty", MessageType.ERROR, VerbosityLevel.ALWAYS)
                     sys.exit(1)
 
-                # Validate config structure after loading
-                self.validate(config)
+                warnings = self.validate(config)
+                for warning in warnings:
+                    message(f"Warning: {warning}", MessageType.WARNING, VerbosityLevel.ALWAYS)
+
                 message(f"Configuration loaded from {self.config_file}", MessageType.DEBUG, VerbosityLevel.DEBUG)
 
-                # Crate repo objects for each hierarchy entry
-                for entry in config["hierarchy"]:
+                # Create repo objects for each repo entry
+                for entry in config.get("repos", []):
                     repo = create_repo(entry["name"], entry["url"], self.repos_directory, entry["repo_type"])
                     entry["repo"] = repo
 
@@ -347,137 +466,6 @@ class Config:
             message(f"Unexpected error loading configuration: {e}", MessageType.ERROR, VerbosityLevel.ALWAYS)
             sys.exit(1)
 
-    def initialize(self, skip_if_already_created: bool = True) -> None:
-        """Interactively create the config file.
-
-        Args:
-            skip_if_already_created: If True, skip initialization if config
-                                    already exists. If False, prompt user
-                                    to confirm overwrite.
-        """
-        if self.config_file.exists():
-            if skip_if_already_created:
-                message("Configuration file already exists, skipping", MessageType.DEBUG, VerbosityLevel.DEBUG)
-                return
-
-            # Confirm overwrite
-            message(
-                f"\nConfiguration file already exists: {self.config_file}", MessageType.WARNING, VerbosityLevel.ALWAYS
-            )
-            message("This will overwrite your existing configuration!", MessageType.WARNING, VerbosityLevel.ALWAYS)
-            response = input("\nContinue? (yes/no): ").strip().lower()
-
-            if response not in ["yes", "y"]:
-                message("Initialization cancelled.", MessageType.NORMAL, VerbosityLevel.ALWAYS)
-                return
-
-            message("\nReinitializing configuration...\n", MessageType.NORMAL, VerbosityLevel.ALWAYS)
-        else:
-            message("No configuration file found. Let's create one!", MessageType.NORMAL, VerbosityLevel.ALWAYS)
-            message("(Press Ctrl+C at any time to exit)\n", MessageType.NORMAL, VerbosityLevel.ALWAYS)
-
-        # Prompt for hierarchy with retry loop
-        hierarchy_list = None
-        while hierarchy_list is None:
-            message(
-                "Enter your hierarchy levels, from LOWEST to HIGHEST priority.",
-                MessageType.NORMAL,
-                VerbosityLevel.ALWAYS,
-            )
-            message("(first = base, last = overrides all)", MessageType.NORMAL, VerbosityLevel.ALWAYS)
-            example = "(e.g., organization, team, personal): "
-            hierarchy_input = input(example).strip()
-
-            if not hierarchy_input:
-                message("Hierarchy cannot be empty. Please try again.\n", MessageType.ERROR, VerbosityLevel.ALWAYS)
-                continue
-
-            # Try parsing as Python list first (for backward compatibility)
-            if hierarchy_input.startswith("["):
-                try:
-                    hierarchy_list = ast.literal_eval(hierarchy_input)
-                    if not isinstance(hierarchy_list, list):
-                        message("Invalid list format. Please try again.\n", MessageType.ERROR, VerbosityLevel.ALWAYS)
-                        hierarchy_list = None
-                        continue
-                except (ValueError, SyntaxError):
-                    message("Invalid list format. Please try again.\n", MessageType.ERROR, VerbosityLevel.ALWAYS)
-                    continue
-            else:
-                # Parse as comma-separated values
-                hierarchy_list = [level.strip() for level in hierarchy_input.split(",") if level.strip()]
-
-            # Validate we got at least one level
-            if not hierarchy_list:
-                message(
-                    "Hierarchy must have at least one level. Please try again.\n",
-                    MessageType.ERROR,
-                    VerbosityLevel.ALWAYS,
-                )
-                hierarchy_list = None
-                continue
-
-            # Validate level names (no special characters that would cause issues)
-            invalid_names = [name for name in hierarchy_list if not name or "/" in name or "\\" in name]
-            if invalid_names:
-                message(
-                    f"Invalid level name(s): {invalid_names}. Names cannot be empty or contain slashes.",
-                    MessageType.ERROR,
-                    VerbosityLevel.ALWAYS,
-                )
-                message("Please try again.\n", MessageType.NORMAL, VerbosityLevel.ALWAYS)
-                hierarchy_list = None
-
-        # Prompt for repository URL for each hierarchy level
-        hierarchy_config: list[HierarchyEntry] = []
-        message("\nNow, provide the repository URL for each level:", MessageType.NORMAL, VerbosityLevel.ALWAYS)
-        message("(Git URL or file:// path, e.g., file:///path/to/dir)\n", MessageType.NORMAL, VerbosityLevel.ALWAYS)
-        for level in hierarchy_list:
-            repo_url = ""
-            repo_type = ""
-            valid = False
-            while not valid:
-                repo_url = input(f"  URL for '{level}': ").strip()
-                if not repo_url:
-                    message("URL cannot be empty. Please try again.", MessageType.ERROR, VerbosityLevel.ALWAYS)
-                    continue
-
-                # Detect which repo types can handle this URL
-                matching_types = self.detect_repo_types(repo_url)
-
-                if len(matching_types) == 0:
-                    message(
-                        "No repository type can handle this URL. Please try again.",
-                        MessageType.ERROR,
-                        VerbosityLevel.ALWAYS,
-                    )
-                    continue
-                elif len(matching_types) == 1:
-                    # Only one match - use it
-                    repo_type = matching_types[0]
-                    message(f"Detected repository type: {repo_type}", MessageType.DEBUG, VerbosityLevel.DEBUG)
-                else:
-                    # Multiple matches - prompt user
-                    repo_type = self.prompt_for_repo_type(repo_url, matching_types)
-
-                # Validate the repository is accessible
-                message("Validating repository...", MessageType.INFO, VerbosityLevel.EXTRA_VERBOSE)
-                if self.validate_repo_url(repo_url):
-                    message("✓ Valid repository", MessageType.SUCCESS, VerbosityLevel.ALWAYS)
-                    # Normalize the URL to ensure file:// URLs are absolute
-                    repo_url = self.normalize_url(repo_url)
-                    valid = True
-                else:
-                    message("Please try again with a valid URL.", MessageType.NORMAL, VerbosityLevel.ALWAYS)
-                    repo_url = ""
-                    repo_type = ""
-
-            hierarchy_config.append({"name": level, "url": repo_url, "repo_type": repo_type})
-
-        # Create config structure and write it
-        config: ConfigData = {"hierarchy": hierarchy_config}
-        self.write(config)
-
     def exists(self) -> bool:
         """Check if the configuration file exists.
 
@@ -486,238 +474,266 @@ class Config:
         """
         return self.config_file.exists()
 
-    def add_level(self, name: str, url: str, position: int | None = None) -> None:
-        """Add a new level to the hierarchy.
+    def get_repo_names(self) -> list[str]:
+        """Get list of repo names from the config file.
 
-        Args:
-            name: Name of the new hierarchy level
-            url: Repository URL (git URL or file:// path)
-            position: Optional position to insert (0-based).
-                     If None, appends to end.
+        Returns:
+            List of repo names, or empty list if config doesn't exist
         """
         if not self.exists():
-            message(
-                "No configuration file found. Run without arguments to create one.",
-                MessageType.ERROR,
-                VerbosityLevel.ALWAYS,
-            )
+            return []
+        try:
+            with open(self.config_file) as f:
+                config = yaml.safe_load(f)
+                if config and "repos" in config:
+                    return [entry["name"] for entry in config["repos"] if isinstance(entry, dict) and "name" in entry]
+        except Exception:
+            pass
+        return []
+
+    def get_directory_paths(self) -> list[str]:
+        """Get list of directory paths from the config file.
+
+        Returns:
+            List of directory path keys, or empty list if config doesn't exist
+        """
+        if not self.exists():
+            return []
+        try:
+            with open(self.config_file) as f:
+                config = yaml.safe_load(f)
+                if config and "directories" in config and isinstance(config["directories"], dict):
+                    return list(config["directories"].keys())
+        except Exception:
+            pass
+        return []
+
+    def add_repo(self, name: str, url: str, repo_type: str | None = None) -> None:
+        """Add a new repo to the configuration.
+
+        Args:
+            name: Name of the repo
+            url: Repository URL
+            repo_type: Optional repo type (auto-detected if not provided)
+        """
+        if not self.exists():
+            message("No configuration file found. Run 'agent-manager config init' first.",
+                    MessageType.ERROR, VerbosityLevel.ALWAYS)
             sys.exit(1)
 
-        # Detect repo type
-        matching_types = self.detect_repo_types(url)
-        if len(matching_types) == 0:
-            message("No repository type can handle this URL", MessageType.ERROR, VerbosityLevel.ALWAYS)
-            sys.exit(1)
-        elif len(matching_types) == 1:
-            repo_type = matching_types[0]
-            message(f"Detected repository type: {repo_type}", MessageType.DEBUG, VerbosityLevel.DEBUG)
-        else:
-            repo_type = self.prompt_for_repo_type(url, matching_types)
+        if repo_type is None:
+            matching_types = self.detect_repo_types(url)
+            if len(matching_types) == 0:
+                message("No repository type can handle this URL", MessageType.ERROR, VerbosityLevel.ALWAYS)
+                sys.exit(1)
+            elif len(matching_types) == 1:
+                repo_type = matching_types[0]
+            else:
+                repo_type = self.prompt_for_repo_type(url, matching_types)
 
-        # Validate repository URL
         message("Validating repository...", MessageType.INFO, VerbosityLevel.EXTRA_VERBOSE)
         if not self.validate_repo_url(url):
             message("Invalid or inaccessible repository URL", MessageType.ERROR, VerbosityLevel.ALWAYS)
             sys.exit(1)
 
-        # Normalize the URL to ensure file:// URLs are absolute
         url = self.normalize_url(url)
-
         config = self.read()
 
-        # Check if name already exists
-        if any(entry["name"] == name for entry in config["hierarchy"]):
-            message(f"Hierarchy level '{name}' already exists", MessageType.ERROR, VerbosityLevel.ALWAYS)
+        if any(entry["name"] == name for entry in config.get("repos", [])):
+            message(f"Repo '{name}' already exists", MessageType.ERROR, VerbosityLevel.ALWAYS)
             sys.exit(1)
 
-        # Add the new entry
-        new_entry: HierarchyEntry = {"name": name, "url": url, "repo_type": repo_type}
-
-        if position is not None:
-            if position < 0 or position > len(config["hierarchy"]):
-                message(
-                    f"Invalid position. Must be between 0 and {len(config['hierarchy'])}",
-                    MessageType.ERROR,
-                    VerbosityLevel.ALWAYS,
-                )
-                sys.exit(1)
-            config["hierarchy"].insert(position, new_entry)
-            message(f"✓ Added '{name}' at position {position}", MessageType.SUCCESS, VerbosityLevel.ALWAYS)
-        else:
-            config["hierarchy"].append(new_entry)
-            message(f"✓ Added '{name}' as highest priority level", MessageType.SUCCESS, VerbosityLevel.ALWAYS)
-
+        config.setdefault("repos", []).append({"name": name, "url": url, "repo_type": repo_type})
         self.write(config)
 
-    def remove_level(self, name: str) -> None:
-        """Remove a level from the hierarchy.
-
-        Args:
-            name: Name of the hierarchy level to remove
-        """
-        if not self.exists():
-            message(
-                "No configuration file found. Run without arguments to create one.",
-                MessageType.ERROR,
-                VerbosityLevel.ALWAYS,
-            )
-            sys.exit(1)
-
-        config = self.read()
-
-        # Find and remove the entry
-        original_length = len(config["hierarchy"])
-        config["hierarchy"] = [entry for entry in config["hierarchy"] if entry["name"] != name]
-
-        if len(config["hierarchy"]) == original_length:
-            message(f"Hierarchy level '{name}' not found", MessageType.ERROR, VerbosityLevel.ALWAYS)
-            sys.exit(1)
-
-        if len(config["hierarchy"]) == 0:
-            message("Cannot remove the last hierarchy level", MessageType.ERROR, VerbosityLevel.ALWAYS)
-            sys.exit(1)
-
-        message(f"✓ Removed hierarchy level '{name}'", MessageType.SUCCESS, VerbosityLevel.ALWAYS)
-        self.write(config)
-
-    def update_level(self, name: str, new_url: str | None = None, new_name: str | None = None) -> None:
-        """Update an existing hierarchy level.
-
-        Args:
-            name: Current name of the hierarchy level
-            new_url: Optional new repository URL (git URL or file:// path)
-            new_name: Optional new name for the level
-        """
-        if not self.exists():
-            message(
-                "No configuration file found. Run without arguments to create one.",
-                MessageType.ERROR,
-                VerbosityLevel.ALWAYS,
-            )
-            sys.exit(1)
-
-        if not new_url and not new_name:
-            message("Must specify either --url or --rename", MessageType.ERROR, VerbosityLevel.ALWAYS)
-            sys.exit(1)
-
-        config = self.read()
-
-        # Find the entry
-        entry_found = False
-        for entry in config["hierarchy"]:
-            if entry["name"] == name:
-                entry_found = True
-
-                # Validate new URL if provided
-                if new_url:
-                    # Detect repo type for new URL
-                    matching_types = self.detect_repo_types(new_url)
-                    if len(matching_types) == 0:
-                        message("No repository type can handle this URL", MessageType.ERROR, VerbosityLevel.ALWAYS)
-                        sys.exit(1)
-                    elif len(matching_types) == 1:
-                        new_repo_type = matching_types[0]
-                        message(f"Detected repository type: {new_repo_type}", MessageType.DEBUG, VerbosityLevel.DEBUG)
-                    else:
-                        new_repo_type = self.prompt_for_repo_type(new_url, matching_types)
-
-                    message("Validating repository...", MessageType.INFO, VerbosityLevel.EXTRA_VERBOSE)
-                    if not self.validate_repo_url(new_url):
-                        message("Invalid or inaccessible repository URL", MessageType.ERROR, VerbosityLevel.ALWAYS)
-                        sys.exit(1)
-                    # Normalize the URL to ensure file:// URLs are absolute
-                    new_url = self.normalize_url(new_url)
-                    entry["url"] = new_url
-                    entry["repo_type"] = new_repo_type
-                    message(f"✓ Updated URL for '{name}'", MessageType.SUCCESS, VerbosityLevel.ALWAYS)
-
-                # Check if new name already exists
-                if new_name:
-                    name_exists = any(e["name"] == new_name for e in config["hierarchy"] if e["name"] != name)
-                    if name_exists:
-                        message(
-                            f"Hierarchy level '{new_name}' already exists", MessageType.ERROR, VerbosityLevel.ALWAYS
-                        )
-                        sys.exit(1)
-                    entry["name"] = new_name
-                    message(f"✓ Renamed '{name}' to '{new_name}'", MessageType.SUCCESS, VerbosityLevel.ALWAYS)
-
-                break
-
-        if not entry_found:
-            message(f"Hierarchy level '{name}' not found", MessageType.ERROR, VerbosityLevel.ALWAYS)
-            sys.exit(1)
-
-        self.write(config)
-
-    def move_level(self, name: str, position: int | None = None, direction: str | None = None) -> None:
-        """Move a hierarchy level to a new position.
-
-        Args:
-            name: Name of the hierarchy level to move
-            position: New position (0-based), or None if using direction
-            direction: 'up' or 'down' to move relative, or None if using
-                       position
-        """
-        if not self.exists():
-            message(
-                "No configuration file found. Run without arguments to create one.",
-                MessageType.ERROR,
-                VerbosityLevel.ALWAYS,
-            )
-            sys.exit(1)
-
-        if position is None and direction is None:
-            message("Must specify either --position or --up/--down", MessageType.ERROR, VerbosityLevel.ALWAYS)
-            sys.exit(1)
-
-        if position is not None and direction is not None:
-            message("Cannot specify both --position and --up/--down", MessageType.ERROR, VerbosityLevel.ALWAYS)
-            sys.exit(1)
-
-        config = self.read()
-
-        # Find the entry
-        current_idx = None
-        for idx, entry in enumerate(config["hierarchy"]):
-            if entry["name"] == name:
-                current_idx = idx
-                break
-
-        if current_idx is None:
-            message(f"Hierarchy level '{name}' not found", MessageType.ERROR, VerbosityLevel.ALWAYS)
-            sys.exit(1)
-
-        # Calculate new position
-        if direction:
-            if direction == "up":
-                new_pos = current_idx - 1
-            elif direction == "down":
-                new_pos = current_idx + 1
-            else:
-                message("Direction must be 'up' or 'down'", MessageType.ERROR, VerbosityLevel.ALWAYS)
-                sys.exit(1)
-        else:
-            new_pos = position
-
-        # Validate new position
-        if new_pos < 0 or new_pos >= len(config["hierarchy"]):
-            message(
-                f"Invalid position. Must be between 0 and {len(config['hierarchy']) - 1}",
-                MessageType.ERROR,
-                VerbosityLevel.ALWAYS,
-            )
-            sys.exit(1)
-
-        if new_pos == current_idx:
-            message(f"'{name}' is already at position {current_idx}", MessageType.INFO, VerbosityLevel.EXTRA_VERBOSE)
-            return
-
-        # Move the entry
-        entry = config["hierarchy"].pop(current_idx)
-        config["hierarchy"].insert(new_pos, entry)
-
+        message(f"Repo '{name}' added.", MessageType.SUCCESS, VerbosityLevel.ALWAYS)
         message(
-            f"✓ Moved '{name}' from position {current_idx} to {new_pos}", MessageType.SUCCESS, VerbosityLevel.ALWAYS
+            f"To include it in the default hierarchy, run:\n"
+            f"  agent-manager config defaults --repos {name}",
+            MessageType.INFO, VerbosityLevel.ALWAYS,
         )
+
+    def remove_repo(self, name: str, force: bool = False) -> None:
+        """Remove a repo from the configuration.
+
+        Args:
+            name: Name of the repo to remove
+            force: If True, cascade-remove from default_hierarchy and directory hierarchies
+        """
+        if not self.exists():
+            message("No configuration file found.", MessageType.ERROR, VerbosityLevel.ALWAYS)
+            sys.exit(1)
+
+        config = self.read()
+
+        repos = config.get("repos", [])
+        if not any(entry["name"] == name for entry in repos):
+            message(f"Repo '{name}' not found", MessageType.ERROR, VerbosityLevel.ALWAYS)
+            sys.exit(1)
+
+        # Check references
+        references: list[str] = []
+        if name in config.get("default_hierarchy", []):
+            references.append("default_hierarchy")
+        for dir_path, dir_config in config.get("directories", {}).items():
+            if dir_config and name in dir_config.get("hierarchy", []):
+                references.append(f"directory '{dir_path}' hierarchy")
+
+        if references and not force:
+            ref_list = "\n  - ".join(references)
+            message(
+                f"Error: '{name}' is referenced in:\n  - {ref_list}\n"
+                f"Use --force to remove it from all references, or update those first.",
+                MessageType.ERROR, VerbosityLevel.ALWAYS,
+            )
+            sys.exit(1)
+
+        # Remove from repos
+        config["repos"] = [entry for entry in repos if entry["name"] != name]
+
+        # Cascade if forced
+        if force and references:
+            if "default_hierarchy" in config:
+                config["default_hierarchy"] = [n for n in config["default_hierarchy"] if n != name]
+            for dir_config in config.get("directories", {}).values():
+                if dir_config and "hierarchy" in dir_config:
+                    dir_config["hierarchy"] = [n for n in dir_config["hierarchy"] if n != name]
+
         self.write(config)
+        message(f"Repo '{name}' removed.", MessageType.SUCCESS, VerbosityLevel.ALWAYS)
+
+    def add_directory(self, path: str, dir_type: str | None = None,
+                      agents: list[str] | None = None,
+                      hierarchy: list[str] | None = None) -> None:
+        """Add a directory to the configuration.
+
+        Args:
+            path: Directory path (can use HOME keyword)
+            dir_type: Directory type (e.g., 'git', 'local')
+            agents: Optional list of agent names
+            hierarchy: Optional list of repo names for hierarchy
+        """
+        if not self.exists():
+            message("No configuration file found. Run 'agent-manager config init' first.",
+                    MessageType.ERROR, VerbosityLevel.ALWAYS)
+            sys.exit(1)
+
+        config = self.read()
+
+        directories = config.setdefault("directories", {})
+        if path in directories:
+            message(f"Directory '{path}' already exists in config", MessageType.ERROR, VerbosityLevel.ALWAYS)
+            sys.exit(1)
+
+        dir_entry: dict[str, Any] = {}
+        if dir_type:
+            dir_entry["type"] = dir_type
+        if agents:
+            dir_entry["agents"] = agents
+        if hierarchy:
+            dir_entry["hierarchy"] = hierarchy
+
+        directories[path] = dir_entry if dir_entry else None
+        self.write(config)
+        message(f"Directory '{path}' added.", MessageType.SUCCESS, VerbosityLevel.ALWAYS)
+
+    def remove_directory(self, path: str) -> None:
+        """Remove a directory from the configuration.
+
+        Args:
+            path: Directory path to remove
+        """
+        if not self.exists():
+            message("No configuration file found.", MessageType.ERROR, VerbosityLevel.ALWAYS)
+            sys.exit(1)
+
+        config = self.read()
+        directories = config.get("directories", {})
+
+        if path not in directories:
+            message(f"Directory '{path}' not found in config", MessageType.ERROR, VerbosityLevel.ALWAYS)
+            sys.exit(1)
+
+        del directories[path]
+        self.write(config)
+        message(f"Directory '{path}' removed.", MessageType.SUCCESS, VerbosityLevel.ALWAYS)
+
+    def set_defaults(self, repos: list[str] | None = None, agents: list[str] | None = None) -> None:
+        """Set default_hierarchy and/or default_agents.
+
+        Declarative: replaces the entire list.
+
+        Args:
+            repos: Full list of repo names for default_hierarchy
+            agents: Full list of agent names for default_agents
+        """
+        if not self.exists():
+            message("No configuration file found.", MessageType.ERROR, VerbosityLevel.ALWAYS)
+            sys.exit(1)
+
+        config = self.read()
+
+        if repos is not None:
+            config["default_hierarchy"] = repos
+        if agents is not None:
+            config["default_agents"] = agents
+
+        self.write(config)
+        message("Defaults updated.", MessageType.SUCCESS, VerbosityLevel.ALWAYS)
+
+    def get_defaults(self) -> dict[str, list[str]]:
+        """Get current default_hierarchy and default_agents.
+
+        Returns:
+            Dictionary with 'default_hierarchy' and 'default_agents' keys
+        """
+        if not self.exists():
+            return {"default_hierarchy": [], "default_agents": []}
+
+        try:
+            with open(self.config_file) as f:
+                config = yaml.safe_load(f)
+                if config is None:
+                    return {"default_hierarchy": [], "default_agents": []}
+                return {
+                    "default_hierarchy": config.get("default_hierarchy", []),
+                    "default_agents": config.get("default_agents", []),
+                }
+        except Exception:
+            return {"default_hierarchy": [], "default_agents": []}
+
+    @staticmethod
+    def generate_template() -> str:
+        """Generate a commented YAML template for a new configuration.
+
+        Returns:
+            Template string suitable for writing to stdout or a file
+        """
+        return """# agent-manager configuration
+# See docs/CONFIGURATION.md for full reference
+
+repos:
+  - name: example-org
+    url: https://github.com/org/ai-configs.git
+    repo_type: git
+  - name: personal
+    url: file:///path/to/your/personal_ai
+    repo_type: file
+
+default_hierarchy:
+  - example-org
+  - personal
+
+default_agents:
+  - cursor
+  - claude
+
+directories:
+  HOME:
+    type: local
+    # inherits default_hierarchy and default_agents
+  # HOME/GIT/your-project:
+  #   type: git
+  #   agents: [cursor]
+  #   hierarchy: [personal]
+"""

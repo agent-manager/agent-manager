@@ -137,9 +137,9 @@ class TestConfigCommand:
                         args = mock_process.call_args[0][0]
                         assert args.config_command == "show"
 
-    def test_config_add_command(self):
-        """Test config add command with parameters."""
-        with patch("sys.argv", ["agent-manager", "config", "add", "test-level", "https://github.com/test/repo"]):
+    def test_config_defaults_command(self):
+        """Test config defaults command with parameters."""
+        with patch("sys.argv", ["agent-manager", "config", "defaults", "--repos", "org", "personal"]):
             with patch("agent_manager.agent_manager.Config") as mock_config:
                 with patch("agent_manager.agent_manager.ConfigCommands.process_cli_command") as mock_process:
                     with patch("agent_manager.agent_manager.get_output"):
@@ -149,9 +149,8 @@ class TestConfigCommand:
 
                         assert mock_process.called
                         args = mock_process.call_args[0][0]
-                        assert args.config_command == "add"
-                        assert args.name == "test-level"
-                        assert args.url == "https://github.com/test/repo"
+                        assert args.config_command == "defaults"
+                        assert args.repos == ["org", "personal"]
 
     def test_config_command_early_return(self):
         """Test that config command returns early without initializing repos."""
@@ -514,7 +513,7 @@ class TestIntegration:
 
     def test_config_command_workflow(self):
         """Test complete config management workflow."""
-        with patch("sys.argv", ["agent-manager", "-v", "config", "add", "team", "https://github.com/test/team"]):
+        with patch("sys.argv", ["agent-manager", "-v", "config", "show"]):
             with patch("agent_manager.agent_manager.Config") as mock_config:
                 with patch("agent_manager.agent_manager.ConfigCommands.process_cli_command") as mock_process:
                     with patch("agent_manager.agent_manager.get_output") as mock_output:
