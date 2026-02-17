@@ -584,7 +584,7 @@ class TestFullIntegration:
         repos_dir.mkdir(parents=True, exist_ok=True)
 
         return {
-            "hierarchy": [
+            "repos": [
                 {
                     "name": "organization",
                     "url": f"file://{test_data_path / 'org'}",
@@ -614,19 +614,20 @@ class TestFullIntegration:
 
         from agent_manager.plugins.agents.test_agent import TestAgent
 
-        # Create TestAgent with temp directory
+        # Create TestAgent with temp directory as the base
         test_agent = TestAgent(temp_dir=temp_output_dir)
 
-        # Run the update
-        test_agent.update(mock_config_data)
+        # V2: pass repos list and base_directory
+        test_agent.update(mock_config_data["repos"], base_directory=temp_output_dir)
 
         # Verify the output directory was created
-        assert temp_output_dir.exists()
+        output_dir = temp_output_dir / ".testagent"
+        assert output_dir.exists()
 
-        # Verify merged files exist
-        merged_cursorrules = temp_output_dir / ".cursorrules"
-        merged_mcp = temp_output_dir / "mcp.json"
-        merged_settings = temp_output_dir / "settings.yaml"
+        # Verify merged files exist (under .testagent subdirectory)
+        merged_cursorrules = output_dir / ".cursorrules"
+        merged_mcp = output_dir / "mcp.json"
+        merged_settings = output_dir / "settings.yaml"
 
         assert merged_cursorrules.exists(), "Merged .cursorrules should exist"
         assert merged_mcp.exists(), "Merged mcp.json should exist"
@@ -634,34 +635,25 @@ class TestFullIntegration:
 
         # Verify .cursorrules content (text merger should concatenate)
         cursorrules_content = merged_cursorrules.read_text()
-        # At minimum, personal content should be present (highest priority)
         assert "Personal Preferences - John's Setup" in cursorrules_content
-        # Note: The TextMerger should concatenate all three, but verifying at least one works
 
         # Verify mcp.json deep merge (JSON merger)
         mcp_data = json.loads(merged_mcp.read_text())
-        # Should have all MCP servers from all three levels
-        assert "company-docs" in mcp_data["mcpServers"]  # from org
-        assert "jira" in mcp_data["mcpServers"]  # from org
-        assert "postgres" in mcp_data["mcpServers"]  # from team
-        assert "redis" in mcp_data["mcpServers"]  # from team
-        assert "aws" in mcp_data["mcpServers"]  # from team
-        assert "filesystem" in mcp_data["mcpServers"]  # from personal
-        assert "git" in mcp_data["mcpServers"]  # from personal
-        assert "localhost" in mcp_data["mcpServers"]  # from personal
-        assert "postgres-local" in mcp_data["mcpServers"]  # from personal
+        assert "company-docs" in mcp_data["mcpServers"]
+        assert "jira" in mcp_data["mcpServers"]
+        assert "postgres" in mcp_data["mcpServers"]
+        assert "redis" in mcp_data["mcpServers"]
+        assert "aws" in mcp_data["mcpServers"]
+        assert "filesystem" in mcp_data["mcpServers"]
+        assert "git" in mcp_data["mcpServers"]
+        assert "localhost" in mcp_data["mcpServers"]
+        assert "postgres-local" in mcp_data["mcpServers"]
 
         # Verify settings.yaml deep merge with overrides (YAML merger)
         settings_data = yaml.safe_load(merged_settings.read_text())
-
-        # Personal overrides should win
-        assert settings_data["python"]["testing"]["min_coverage"] == 90  # personal overrides team's 85
-
-        # Team data should be present
+        assert settings_data["python"]["testing"]["min_coverage"] == 90
         assert "team" in settings_data
         assert settings_data["team"]["name"] == "Backend Engineering"
-
-        # Org data should be present
         assert "organization" in settings_data
         assert settings_data["organization"]["name"] == "ACME Corp"
 
@@ -696,13 +688,11 @@ class TestFullIntegration:
         """Test that TestAgent can be imported and instantiated."""
         from agent_manager.plugins.agents.test_agent import TestAgent
 
-        # Test we can import and create the agent
         agent = TestAgent()
         assert agent is not None
         assert hasattr(agent, "update")
-        assert hasattr(agent, "agent_directory")
+        assert hasattr(agent, "agent_subdirectory")
 
-        # Cleanup
         agent.cleanup()
 
     def test_test_agent_initialization(self):
@@ -713,20 +703,19 @@ class TestFullIntegration:
 
         # Test with auto-generated temp dir
         agent = TestAgent()
-        assert agent.agent_directory.exists()
-        temp_path = agent.agent_directory
+        base = agent.get_base_directory()
+        assert base.exists()
 
         agent.cleanup()
-        assert not temp_path.exists()
+        assert not base.exists()
 
         # Test with provided temp dir
         from tempfile import mkdtemp
 
         custom_temp = Path(mkdtemp())
         agent2 = TestAgent(temp_dir=custom_temp)
-        assert agent2.agent_directory == custom_temp
+        assert agent2.get_base_directory() == custom_temp
 
-        # Cleanup
         import shutil
 
         shutil.rmtree(custom_temp)
