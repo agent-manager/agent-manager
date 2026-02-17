@@ -330,3 +330,36 @@ class TestAbstractRepoEdgeCases:
 
         (symlink_dir / "test").mkdir()
         assert repo.exists() is True
+
+
+class TestDetectDirectory:
+    """Test cases for detect_directory classmethod."""
+
+    def test_nonexistent_directory(self, tmp_path):
+        assert AbstractRepo.detect_directory(tmp_path / "nope") is None
+
+    def test_file_not_directory(self, tmp_path):
+        f = tmp_path / "file.txt"
+        f.touch()
+        assert AbstractRepo.detect_directory(f) is None
+
+    def test_plain_directory_returns_file(self, tmp_path):
+        d = tmp_path / "plain"
+        d.mkdir()
+        assert AbstractRepo.detect_directory(d) == "file"
+
+    def test_git_directory_returns_git(self, tmp_path):
+        d = tmp_path / "gitrepo"
+        d.mkdir()
+        (d / ".git").mkdir()
+        assert AbstractRepo.detect_directory(d) == "git"
+
+
+class TestSafeToOverwrite:
+    """Test cases for safe_to_overwrite on base class."""
+
+    def test_base_always_returns_false(self, tmp_path):
+        repo = ConcreteRepo("test", "test://valid/repo", tmp_path)
+        some_file = tmp_path / "any_file.txt"
+        some_file.touch()
+        assert repo.safe_to_overwrite(some_file) is False
