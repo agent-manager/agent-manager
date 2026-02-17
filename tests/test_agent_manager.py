@@ -20,7 +20,7 @@ class TestCLIArgumentParsing:
         assert "Manage your AI agents from a hierarchy of directories" in captured.out
         assert "runtime commands" in captured.out
         assert "plugin commands" in captured.out
-        assert "configuration commands" in captured.out
+        assert "config" in captured.out
 
     def test_version_verbosity_levels(self):
         """Test verbosity levels are correctly parsed."""

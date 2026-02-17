@@ -5,7 +5,15 @@
 import argparse
 import sys
 
-from agent_manager.cli_extensions import AgentCommands, ConfigCommands, MergerCommands, RepoCommands
+from agent_manager.cli_extensions import (
+    AgentCommands,
+    ConfigCommands,
+    DirectoryCommands,
+    MergerCommands,
+    PluginCommands,
+    RepoCommands,
+    RepoConfigCommands,
+)
 from agent_manager.config import Config
 from agent_manager.core import create_default_merger_registry, update_repositories
 from agent_manager.output import MessageType, VerbosityLevel, get_output, message
@@ -13,16 +21,23 @@ from agent_manager.output import MessageType, VerbosityLevel, get_output, messag
 # Grouped command help text
 COMMAND_GROUPS = """
 runtime commands:
-  run                 Run an agent (default command)
-  update              Update all repositories in the hierarchy
+  run                 Run agent(s) for configured directories
+  update              Update all repositories
+
+config entity commands:
+  repo                Manage repo entries in the configuration
+  directory           Manage target directories in the configuration
+
+configuration file commands:
+  config              Manage the configuration file
 
 plugin commands:
-  agents              Manage agent plugins
-  repos               Manage repository types
-  mergers             Manage content mergers
+  plugins             Manage agent, repo, and merger plugins
 
-configuration commands:
-  config              Manage configuration
+legacy aliases (use 'plugins' instead):
+  agents              Alias for 'plugins agents'
+  repos               Alias for 'plugins repos'
+  mergers             Alias for 'plugins mergers'
 """
 
 
@@ -31,7 +46,6 @@ class GroupedHelpFormatter(argparse.RawDescriptionHelpFormatter):
 
     def _metavar_formatter(self, action, default_metavar):
         if action.choices is not None:
-            # For subparser actions, just show the metavar without listing choices
             result = action.metavar if action.metavar is not None else ""
 
             def format_fn(tuple_size):
@@ -51,23 +65,30 @@ class GroupedHelpFormatter(argparse.RawDescriptionHelpFormatter):
 
 def main() -> None:
     """Main entry point for the agent-manager CLI."""
-    # Parse arguments with subcommands
     parser = argparse.ArgumentParser(
         description="Manage your AI agents from a hierarchy of directories",
         formatter_class=GroupedHelpFormatter,
         epilog=COMMAND_GROUPS,
     )
-    parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity (-v, -vv, -vvv)")
-    parser.add_argument("--no-color", action="store_true", help="Disable colored output")
+    parser.add_argument(
+        "-v", "--verbose", action="count", default=0,
+        help="Increase verbosity (-v, -vv, -vvv)",
+    )
+    parser.add_argument(
+        "--no-color", action="store_true",
+        help="Disable colored output",
+    )
 
-    # Use metavar='' to hide the default {cmd1,cmd2,...} display
     subparsers = parser.add_subparsers(dest="command", metavar="<command>")
 
-    # Add CLI arguments from all command extensions
-    AgentCommands.add_cli_arguments(subparsers)
-    RepoCommands.add_cli_arguments(subparsers)
-    ConfigCommands.add_cli_arguments(subparsers)
-    MergerCommands.add_cli_arguments(subparsers)
+    # Register all command parsers
+    AgentCommands.add_cli_arguments(subparsers)     # run + agents
+    RepoCommands.add_cli_arguments(subparsers)      # update + repos (legacy)
+    ConfigCommands.add_cli_arguments(subparsers)     # config
+    MergerCommands.add_cli_arguments(subparsers)     # mergers (legacy)
+    RepoConfigCommands.add_cli_arguments(subparsers)  # repo
+    DirectoryCommands.add_cli_arguments(subparsers)   # directory
+    PluginCommands.add_cli_arguments(subparsers)      # plugins
 
     args = parser.parse_args()
 
@@ -76,55 +97,84 @@ def main() -> None:
     output_mgr.verbosity = args.verbose
     output_mgr.use_color = not args.no_color and sys.stdout.isatty()
 
-    message(f"Verbosity level: {args.verbose}", MessageType.DEBUG, VerbosityLevel.DEBUG)
-    message(f"Command: {args.command}", MessageType.DEBUG, VerbosityLevel.DEBUG)
+    message(
+        f"Verbosity level: {args.verbose}",
+        MessageType.DEBUG,
+        VerbosityLevel.DEBUG,
+    )
+    message(
+        f"Command: {args.command}",
+        MessageType.DEBUG,
+        VerbosityLevel.DEBUG,
+    )
 
     # Initialize configuration manager
     config = Config()
     config.ensure_directories()
 
-    # Handle mergers subcommands
+    # ------------------------------------------------------------------
+    # Commands that return early (no repo update needed)
+    # ------------------------------------------------------------------
+
+    # plugins
+    if args.command == "plugins":
+        merger_registry = create_default_merger_registry()
+        pc = PluginCommands(merger_registry)
+        pc.process_cli_command(args, config)
+        return
+
+    # Legacy aliases -> delegate to same logic
     if args.command == "mergers":
-        # Create a default merger registry for CLI commands
         merger_registry = create_default_merger_registry()
         merger_commands = MergerCommands(merger_registry)
         merger_commands.process_cli_command(args, config)
         return
 
-    # Handle agents subcommands
     if args.command == "agents":
         AgentCommands.process_agents_command(args)
         return
 
-    # Handle repos subcommands
     if args.command == "repos":
         RepoCommands.process_repos_command(args)
         return
 
-    # Handle config subcommands
+    # Config entity commands
+    if args.command == "repo":
+        RepoConfigCommands.process_cli_command(args, config)
+        return
+
+    if args.command == "directory":
+        DirectoryCommands.process_cli_command(args, config)
+        return
+
+    # Config file commands
     if args.command == "config":
         ConfigCommands.process_cli_command(args, config)
         return
 
-    # If no command specified, show help
+    # No command specified
     if args.command is None:
         parser.print_help()
         return
 
+    # ------------------------------------------------------------------
+    # Runtime commands (require config + repo update)
+    # ------------------------------------------------------------------
+
     # Initialize config if needed (skip if already exists)
     config.initialize(skip_if_already_created=True)
 
-    # Load config data (this instantiates all repo objects)
+    # Load config data
     config_data = config.read()
 
-    # Update the repositories (for both 'update' and 'run' commands)
-    update_repositories(config_data, force=getattr(args, "force", False))
+    # Update the repositories
+    update_repositories(
+        config_data, force=getattr(args, "force", False),
+    )
 
-    # If this was just an update command, we're done
     if args.command == "update":
         return
 
-    # Default to run command
     if args.command == "run":
         AgentCommands.process_cli_command(args, config_data)
     else:
