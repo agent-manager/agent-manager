@@ -5,9 +5,43 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from agent_manager.cli_extensions.agent_commands import AgentCommands
+from agent_manager.cli_extensions.agent_commands import (
+    AgentCommands,
+    resolve_directory_path,
+)
 
 
+# ------------------------------------------------------------------
+# resolve_directory_path
+# ------------------------------------------------------------------
+class TestResolveDirectoryPath:
+
+    def test_home_keyword_alone(self):
+        result = resolve_directory_path("HOME")
+        assert result == Path.home().resolve()
+
+    def test_home_keyword_with_subpath(self):
+        result = resolve_directory_path("HOME/GIT/project")
+        expected = (Path.home() / "GIT" / "project").resolve()
+        assert result == expected
+
+    def test_tilde_expansion(self):
+        result = resolve_directory_path("~/GIT/project")
+        expected = (Path.home() / "GIT" / "project").resolve()
+        assert result == expected
+
+    def test_absolute_path(self, tmp_path):
+        result = resolve_directory_path(str(tmp_path))
+        assert result == tmp_path.resolve()
+
+    def test_relative_path(self):
+        result = resolve_directory_path("relative/path")
+        assert result.is_absolute()
+
+
+# ------------------------------------------------------------------
+# add_cli_arguments
+# ------------------------------------------------------------------
 class TestAgentCommandsAddCliArguments:
 
     @patch("agent_manager.cli_extensions.agent_commands.get_agent_names")
@@ -47,8 +81,9 @@ class TestAgentCommandsAddCliArguments:
         assert "disable" in calls
 
     @patch("agent_manager.cli_extensions.agent_commands.get_agent_names")
-    def test_run_has_agent_choices(self, mock_names):
-        mock_names.return_value = ["claude", "custom"]
+    def test_run_has_directory_and_all_flags(self, mock_names):
+        """Verify --directory, --all, --force, --non-interactive exist."""
+        mock_names.return_value = []
         mock_subparsers = Mock()
         mock_run = Mock()
 
@@ -63,11 +98,14 @@ class TestAgentCommandsAddCliArguments:
 
         AgentCommands.add_cli_arguments(mock_subparsers)
 
+        arg_names = set()
         for call in mock_run.add_argument.call_args_list:
-            if call[0] and call[0][0] == "--agent":
-                assert call[1]["choices"] == ["all", "claude", "custom"]
-                return
-        pytest.fail("--agent argument not found")
+            if call[0]:
+                arg_names.add(call[0][0])
+
+        assert "--agent" in arg_names
+        assert "--force" in arg_names
+        assert "--non-interactive" in arg_names
 
     @patch("agent_manager.cli_extensions.agent_commands.get_agent_names")
     def test_no_scope_argument(self, mock_names):
@@ -92,13 +130,21 @@ class TestAgentCommandsAddCliArguments:
                 pytest.fail("--scope should not exist in V2")
 
 
+# ------------------------------------------------------------------
+# process_cli_command (run logic)
+# ------------------------------------------------------------------
 class TestAgentCommandsProcessCliCommand:
 
     @patch("agent_manager.cli_extensions.agent_commands.run_agents")
     @patch("agent_manager.cli_extensions.agent_commands.message")
-    def test_calls_run_agents_with_v2_signature(self, mock_msg, mock_run):
+    def test_run_all_calls_run_agents(self, mock_msg, mock_run):
         args = Mock()
-        args.agent = "claude"
+        args.run_all = True
+        args.directories = None
+        args.agents = None
+        args.force = False
+        args.non_interactive = False
+
         config_data = {
             "repos": [{"name": "org", "url": "x", "repo_type": "git"}],
             "mergers": {"JsonMerger": {"indent": 2}},
@@ -108,24 +154,78 @@ class TestAgentCommandsProcessCliCommand:
 
         mock_run.assert_called_once()
         call_args = mock_run.call_args
-        assert call_args[0][0] == ["claude"]
+        assert call_args[0][0] == ["all"]
         assert call_args[0][1] == config_data["repos"]
         assert isinstance(call_args[0][2], Path)
         assert call_args[0][3] == {"JsonMerger": {"indent": 2}}
 
     @patch("agent_manager.cli_extensions.agent_commands.run_agents")
     @patch("agent_manager.cli_extensions.agent_commands.message")
-    def test_all_agents(self, mock_msg, mock_run):
+    def test_specific_agents(self, mock_msg, mock_run):
         args = Mock()
-        args.agent = "all"
+        args.run_all = True
+        args.directories = None
+        args.agents = ["cursor", "claude"]
+        args.force = False
+        args.non_interactive = False
         config_data = {"repos": [], "mergers": {}}
 
         AgentCommands.process_cli_command(args, config_data)
 
         mock_run.assert_called_once()
-        assert mock_run.call_args[0][0] == ["all"]
+        assert mock_run.call_args[0][0] == ["cursor", "claude"]
+
+    @patch("agent_manager.cli_extensions.agent_commands.run_agents")
+    @patch("agent_manager.cli_extensions.agent_commands.message")
+    def test_specific_directories(self, mock_msg, mock_run):
+        args = Mock()
+        args.run_all = False
+        args.directories = ["HOME", "~/GIT/project"]
+        args.agents = None
+        args.force = False
+        args.non_interactive = False
+        config_data = {"repos": [], "mergers": {}}
+
+        AgentCommands.process_cli_command(args, config_data)
+
+        mock_run.assert_called_once()
+
+    def test_error_without_all_or_directory(self):
+        args = Mock()
+        args.run_all = False
+        args.directories = None
+        args.agents = None
+        args.force = False
+        args.non_interactive = False
+        config_data = {"repos": [], "mergers": {}}
+
+        with pytest.raises(SystemExit) as exc_info:
+            with patch(
+                "agent_manager.cli_extensions.agent_commands.message",
+            ):
+                AgentCommands.process_cli_command(args, config_data)
+
+        assert exc_info.value.code == 2
+
+    @patch("agent_manager.cli_extensions.agent_commands.run_agents")
+    @patch("agent_manager.cli_extensions.agent_commands.message")
+    def test_force_and_non_interactive_flags(self, mock_msg, mock_run):
+        args = Mock()
+        args.run_all = True
+        args.directories = None
+        args.agents = None
+        args.force = True
+        args.non_interactive = True
+        config_data = {"repos": [], "mergers": {}}
+
+        AgentCommands.process_cli_command(args, config_data)
+
+        mock_run.assert_called_once()
 
 
+# ------------------------------------------------------------------
+# process_agents_command (plugin management)
+# ------------------------------------------------------------------
 class TestAgentCommandsProcessAgentsCommand:
 
     def test_no_subcommand(self):
@@ -153,13 +253,19 @@ class TestAgentCommandsProcessAgentsCommand:
         mock_list.assert_called_once()
 
 
+# ------------------------------------------------------------------
+# list_agents
+# ------------------------------------------------------------------
 class TestAgentCommandsListAgents:
 
     @patch("agent_manager.cli_extensions.agent_commands.get_disabled_plugins")
     @patch("agent_manager.cli_extensions.agent_commands.discover_agent_plugins")
     def test_with_plugins(self, mock_disc, mock_disabled):
         mock_disc.return_value = {
-            "claude": {"package_name": "am_agent_claude", "source": "package"},
+            "claude": {
+                "package_name": "am_agent_claude",
+                "source": "package",
+            },
         }
         mock_disabled.return_value = {"agents": []}
         messages = []

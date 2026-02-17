@@ -2,10 +2,29 @@
 
 import argparse
 import sys
+from pathlib import Path
 
 from agent_manager.core import discover_agent_plugins, get_agent_names, run_agents
 from agent_manager.output import MessageType, VerbosityLevel, message
 from agent_manager.utils import get_disabled_plugins, set_plugin_enabled
+
+
+def resolve_directory_path(raw: str) -> Path:
+    """Resolve a directory path from CLI input.
+
+    Handles the ``HOME`` keyword, ``~`` prefix, and resolves to an
+    absolute path so it can be matched against config entries.
+
+    Args:
+        raw: Raw path string from CLI (e.g. ``HOME``, ``~/GIT/...``,
+             ``/absolute/path``)
+
+    Returns:
+        Resolved absolute Path
+    """
+    if raw == "HOME" or raw.startswith("HOME/"):
+        raw = raw.replace("HOME", str(Path.home()), 1)
+    return Path(raw).expanduser().resolve()
 
 
 class AgentCommands:
@@ -20,7 +39,7 @@ class AgentCommands:
         """
         agent_plugin_names = get_agent_names()
 
-        # Agents command group
+        # Agents command group (plugin management)
         agents_parser = subparsers.add_parser(
             "agents", help="Manage agent plugins",
         )
@@ -55,15 +74,52 @@ class AgentCommands:
             help="Run agent(s) for configured directories",
             description=(
                 "Merge configurations from repos and apply them to "
-                "the specified agent(s) in configured directories."
+                "the specified agent(s) in configured directories. "
+                "Either --all or at least one --directory is required."
+            ),
+        )
+
+        target_group = run_parser.add_mutually_exclusive_group()
+        target_group.add_argument(
+            "--all",
+            action="store_true",
+            dest="run_all",
+            help="Run against all configured directories",
+        )
+        target_group.add_argument(
+            "--directory",
+            action="append",
+            dest="directories",
+            metavar="PATH",
+            help=(
+                "Target directory to run against (repeatable). "
+                "Use HOME for home directory."
+            ),
+        )
+
+        run_parser.add_argument(
+            "--agent",
+            action="append",
+            dest="agents",
+            metavar="NAME",
+            choices=agent_plugin_names or None,
+            help=(
+                "Agent plugin to use (repeatable). "
+                "Omit for all agents."
             ),
         )
         run_parser.add_argument(
-            "--agent",
-            type=str,
-            default="all",
-            choices=["all"] + agent_plugin_names,
-            help="Agent plugin to use (default: all agents)",
+            "--force",
+            action="store_true",
+            help="Override safety checks (clobber warnings, type mismatches)",
+        )
+        run_parser.add_argument(
+            "--non-interactive",
+            action="store_true",
+            help=(
+                "Suppress all prompts; skip anything questionable. "
+                "Non-zero exit if anything was skipped (for cron/CI)."
+            ),
         )
 
     @classmethod
@@ -201,15 +257,36 @@ class AgentCommands:
     def process_cli_command(cls, args, config_data: dict) -> None:
         """Process the run command for agents.
 
-        This is a transitional implementation. The full directory-iteration
+        This is a transitional implementation.  The full directory-iteration
         loop will be implemented in PR 7 (main loop rewrite).
 
         Args:
             args: Parsed command-line arguments
             config_data: V2 configuration data with repos, directories, etc.
         """
-        agents_to_run = (
-            [args.agent] if args.agent != "all" else ["all"]
+        # Validate that --all or --directory was provided
+        run_all = getattr(args, "run_all", False)
+        directories = getattr(args, "directories", None)
+
+        if not run_all and not directories:
+            message(
+                "Error: specify --all or at least one --directory",
+                MessageType.ERROR,
+                VerbosityLevel.ALWAYS,
+            )
+            sys.exit(2)
+
+        # Determine which agents to run
+        agents = getattr(args, "agents", None)
+        agents_to_run = agents if agents else ["all"]
+
+        force = getattr(args, "force", False)
+        non_interactive = getattr(args, "non_interactive", False)
+
+        # Resolve requested directories
+        resolved_dirs = (
+            None if run_all
+            else [resolve_directory_path(d) for d in directories]
         )
 
         # TODO(PR 7): iterate config_data["directories"], resolve
@@ -222,7 +299,25 @@ class AgentCommands:
             VerbosityLevel.VERBOSE,
         )
 
-        from pathlib import Path
+        if force:
+            message(
+                "Force mode enabled.",
+                MessageType.DEBUG,
+                VerbosityLevel.DEBUG,
+            )
+        if non_interactive:
+            message(
+                "Non-interactive mode enabled.",
+                MessageType.DEBUG,
+                VerbosityLevel.DEBUG,
+            )
+        if resolved_dirs:
+            for d in resolved_dirs:
+                message(
+                    f"Target directory: {d}",
+                    MessageType.DEBUG,
+                    VerbosityLevel.DEBUG,
+                )
 
         repos = config_data.get("repos", [])
         merger_settings = config_data.get("mergers", {})

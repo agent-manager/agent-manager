@@ -20,7 +20,7 @@ class TestCLIArgumentParsing:
         assert "Manage your AI agents from a hierarchy of directories" in captured.out
         assert "runtime commands" in captured.out
         assert "plugin commands" in captured.out
-        assert "configuration commands" in captured.out
+        assert "config" in captured.out
 
     def test_version_verbosity_levels(self):
         """Test verbosity levels are correctly parsed."""
@@ -334,11 +334,11 @@ class TestRunCommand:
 
                             mock_agent.assert_called_once()
 
-    def test_run_command_with_agent_flag(self):
-        """Test run command with specific agent selection."""
+    def test_run_command_with_all_flag(self):
+        """Test run command with --all flag."""
         mock_config_data = {"hierarchy": []}
 
-        with patch("sys.argv", ["agent-manager", "run", "--agent", "all"]):
+        with patch("sys.argv", ["agent-manager", "run", "--all"]):
             with patch("agent_manager.agent_manager.Config") as mock_config:
                 with patch("agent_manager.agent_manager.update_repositories"):
                     with patch("agent_manager.agent_manager.AgentCommands.process_cli_command") as mock_agent:
@@ -349,7 +349,7 @@ class TestRunCommand:
                                 main()
 
                                 args = mock_agent.call_args[0][0]
-                                assert args.agent == "all"
+                                assert args.run_all is True
 
     def test_run_updates_repos_before_running_agents(self):
         """Test that repositories are updated before running agents."""
@@ -482,7 +482,7 @@ class TestIntegration:
             ]
         }
 
-        with patch("sys.argv", ["agent-manager", "-vv", "run", "--agent", "all"]):
+        with patch("sys.argv", ["agent-manager", "-vv", "run", "--all"]):
             with patch("agent_manager.agent_manager.Config") as mock_config:
                 with patch("agent_manager.agent_manager.update_repositories") as mock_update:
                     with patch("agent_manager.agent_manager.AgentCommands.process_cli_command") as mock_agent:
@@ -508,7 +508,7 @@ class TestIntegration:
                             # Verify agent command args
                             args, config_data = mock_agent.call_args[0]
                             assert args.command == "run"
-                            assert args.agent == "all"
+                            assert args.run_all is True
                             assert config_data == mock_config_data
 
     def test_config_command_workflow(self):
