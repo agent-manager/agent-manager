@@ -41,13 +41,6 @@ class AbstractRepo(ABC):
     def validate_url(cls, url: str) -> bool:
         """Validate that the URL is accessible and valid.
 
-        This method should check if the repository URL is not only
-        syntactically correct (via can_handle_url), but also accessible.
-        For example:
-        - Git repos: Check if git ls-remote succeeds
-        - File repos: Check if the path exists
-        - S3 repos: Check if the bucket is accessible
-
         Args:
             url: The URL to validate
 
@@ -93,28 +86,74 @@ class AbstractRepo(ABC):
     def get_display_url(self) -> str:
         """Get a human-friendly display version of the URL.
 
-        This is used for showing resolved paths or formatted URLs
-        to users. Default implementation returns the original URL.
-        Subclasses can override to provide more meaningful display.
-
         Returns:
             String representation of the URL for display purposes
         """
         return self.url
 
-    def __str__(self) -> str:
-        """String representation of the repository.
+    # ------------------------------------------------------------------
+    # V2 safety methods
+    # ------------------------------------------------------------------
+    @classmethod
+    def detect_directory(cls, path: Path) -> str | None:
+        """Detect the VCS type of a target directory.
+
+        Inspects the directory at *path* and returns a repo type string
+        (e.g. ``"git"``, ``"file"``) or ``None`` if the directory does
+        not exist or is not recognised.
+
+        The base implementation checks for a ``.git`` directory (returns
+        ``"git"``), and falls back to ``"file"`` for any existing
+        directory.  Subclasses may override for more specific detection.
+
+        Args:
+            path: Directory to inspect
 
         Returns:
-            String describing the repository
+            Repo type string or None
         """
+        if not path.exists() or not path.is_dir():
+            return None
+        if (path / ".git").exists():
+            return "git"
+        return "file"
+
+    def safe_to_overwrite(self, file_path: Path) -> bool:
+        """Determine whether *file_path* can be safely overwritten.
+
+        "Safe" means the overwrite will not cause data loss that the
+        user cannot recover.  Subclasses implement the actual logic:
+
+        * **GitRepo**: returns ``True`` if the file is tracked by Git
+          and has no uncommitted changes (i.e. it can be recovered via
+          ``git checkout``).
+        * **LocalRepo**: always returns ``False`` because there is no
+          VCS to recover from.
+
+        The default implementation conservatively returns ``False``.
+
+        Args:
+            file_path: Absolute path to the file to check
+
+        Returns:
+            True if safe to overwrite, False otherwise
+        """
+        return False
+
+    # ------------------------------------------------------------------
+    # String representations
+    # ------------------------------------------------------------------
+    def __str__(self) -> str:
+        """String representation of the repository."""
         repo_type = self.__class__.__name__.replace("Repo", "").lower()
-        return f"Repo(name='{self.name}', type={repo_type}, path={self.local_path})"
+        return (
+            f"Repo(name='{self.name}', type={repo_type}, "
+            f"path={self.local_path})"
+        )
 
     def __repr__(self) -> str:
-        """Developer representation of the repository.
-
-        Returns:
-            String for debugging
-        """
-        return f"{self.__class__.__name__}(name='{self.name}', url='{self.url}', local_path={self.local_path})"
+        """Developer representation of the repository."""
+        return (
+            f"{self.__class__.__name__}(name='{self.name}', "
+            f"url='{self.url}', local_path={self.local_path})"
+        )
