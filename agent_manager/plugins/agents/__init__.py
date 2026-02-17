@@ -1,5 +1,5 @@
 """Agent base classes and interfaces."""
 
-from .agent import AbstractAgent, ScopeConfig
+from .agent import AbstractAgent
 
-__all__ = ["AbstractAgent", "ScopeConfig"]
+__all__ = ["AbstractAgent"]
